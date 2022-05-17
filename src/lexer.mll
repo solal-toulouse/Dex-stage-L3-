@@ -11,6 +11,14 @@ rule token = parse
     { token lexbuf }
 | ['0'-'9']+ as i
     { INT (int_of_string i) }
+| ['0'-'9']+ ('.' ['0' - '9']) ? as f
+    { FLOAT (float_of_string f)}
+| "let"
+    { LET }
+| "in"
+    { IN }
+| '='
+    { EQUAL }
 | '+'
     { PLUS }
 | '-'
@@ -23,6 +31,8 @@ rule token = parse
     { LPAREN }
 | ')'
     { RPAREN }
+| ['A'-'Z' 'a'-'z' '0'-'9' '_'] + as s
+    { STRING s }
 | eof
     { EOF }
 | _

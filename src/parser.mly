@@ -1,5 +1,9 @@
 %token <int> INT
-%token PLUS MINUS TIMES DIV
+%token <float> FLOAT
+%token <string> STRING
+%token EVar
+%token LET IN
+%token PLUS MINUS TIMES DIV EQUAL
 %token LPAREN RPAREN
 %token EOF
 
@@ -15,10 +19,13 @@
 let main :=
   e = expr; EOF; { e }
 
-(* An expression is an additive expression. *)
+(* An expression is an additive expression or a variable declaration. *)
 
-let expr ==
-  additive_expr
+let expr :=
+  | e = additive_expr;
+      { e }
+  | v = variable_declaration;
+      { v }
 
 (* An additive expression is
 
@@ -41,6 +48,10 @@ let additive_expr :=
       { EBinOp (e1, op, e2) }
 
 (* These are the additive operators and their meaning. *)
+
+let variable_declaration :=
+  LET; name = STRING; EQUAL; e1 = expr; IN; e2 = expr;
+      { EDecVar (name, e1, e2) }
 
 let additive_op ==
   | PLUS;  { OpPlus }
@@ -71,7 +82,11 @@ let multiplicative_op ==
    way, we get tight locations (i.e., the parentheses are not included). *)
 
 let atomic_expr :=
-  | LPAREN; e = expr; RPAREN;
+  | LPAREN; e = additive_expr; RPAREN;
       { e }
   | i = INT;
-      { ELiteral i }
+      { ELiteralI i }
+  | f = FLOAT;
+      { ELiteralF f }
+  | var = STRING;
+      { EVar var }
