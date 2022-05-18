@@ -1,35 +1,36 @@
 open Syntax
 open Print
 
-module Variable = 
-  struct
-    type t = string
-    let compare x y =
-      Stdlib.compare x y
-    end
+module Environnement = Map.Make(String)
 
-module Environnement = Map.Make(Variable)
-
-let rec interpret (e : expr) (env : float Environnement.t) =
+let rec interpret (e : expr) (env_var : float Environnement.t) (env_fonc : (string * expr) Environnement.t) =
   match e with
   | EVar var ->
-      Environnement.find var env
+      Environnement.find var env_var
   | ELiteralI i ->
       float_of_int i
   | ELiteralF f ->
       f
   | EBinOp (e1, OpPlus, e2) ->
-      interpret e1 env +. interpret e2 env
+      interpret e1 env_var env_fonc +. interpret e2 env_var env_fonc
   | EBinOp (e1, OpMinus, e2) ->
-      interpret e1 env -. interpret e2 env
+      interpret e1 env_var env_fonc -. interpret e2 env_var env_fonc
   | EBinOp (e1, OpTimes, e2) ->
-      interpret e1 env *. interpret e2 env
+      interpret e1 env_var env_fonc *. interpret e2 env_var env_fonc
   | EBinOp (e1, OpDiv, e2) ->
-      interpret e1 env /. interpret e2 env
+      interpret e1 env_var env_fonc /. interpret e2 env_var env_fonc
   | EDecVar (name, e1, e2) ->
-      let x = interpret e1 env in
-      let new_env = Environnement.add name x env
-      in interpret e2 new_env
+      let x = interpret e1 env_var env_fonc in
+      let new_env_var = Environnement.add name x env_var
+      in interpret e2 new_env_var env_fonc
+  | EDecFonc (name, var, e1, e2) ->
+      let new_env_fonc = Environnement.add name (var, e1) env_fonc in
+      interpret e2 env_var new_env_fonc
+  | EFonc (name, e) ->
+      let (var, f) = Environnement.find name env_fonc in
+      let x = interpret e env_var env_fonc in
+      let tempo_env_var = Environnement.add var x env_var in
+      interpret f tempo_env_var env_fonc
 
 let process (data : string) =
   let lexbuf = Lexing.from_string data in
@@ -38,7 +39,7 @@ let process (data : string) =
     let e : expr = Parser.main Lexer.token lexbuf in
     print_expr(e);
     Printf.fprintf stderr "\n";
-    let v = interpret e Environnement.empty in
+    let v = interpret e Environnement.empty Environnement.empty in
     Printf.printf "%f\n%!" v
   with
   | Lexer.Error msg ->

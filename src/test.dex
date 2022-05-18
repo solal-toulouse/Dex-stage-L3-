@@ -1,1 +1,5 @@
-let x = 3 in let y = 2 in let x = 4 in x * x + y
+let x = 3 in 
+let y = 2 in 
+let x = 4 in
+let f x = 3*x in
+f(x + y)

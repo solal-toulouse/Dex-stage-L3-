@@ -7,3 +7,5 @@ type expr =
 | EBinOp of expr * binop * expr
 | EDecVar of string * expr * expr
 | EVar of string
+| EDecFonc of string * string * expr * expr
+| EFonc of string * expr

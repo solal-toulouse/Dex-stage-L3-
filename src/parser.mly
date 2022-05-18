@@ -1,7 +1,6 @@
 %token <int> INT
 %token <float> FLOAT
 %token <string> STRING
-%token EVar
 %token LET IN
 %token PLUS MINUS TIMES DIV EQUAL
 %token LPAREN RPAREN
@@ -26,6 +25,8 @@ let expr :=
       { e }
   | v = variable_declaration;
       { v }
+  | f = fonction_declaration;
+      { f }
 
 (* An additive expression is
 
@@ -52,6 +53,10 @@ let additive_expr :=
 let variable_declaration :=
   LET; name = STRING; EQUAL; e1 = expr; IN; e2 = expr;
       { EDecVar (name, e1, e2) }
+    
+let fonction_declaration :=
+  LET; name = STRING; var = STRING; EQUAL; e1 = expr; IN; e2 = expr;
+      { EDecFonc (name, var, e1, e2) }
 
 let additive_op ==
   | PLUS;  { OpPlus }
@@ -90,3 +95,5 @@ let atomic_expr :=
       { ELiteralF f }
   | var = STRING;
       { EVar var }
+  | name = STRING; LPAREN; e = expr; RPAREN;
+      { EFonc(name, e) }
