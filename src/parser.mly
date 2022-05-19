@@ -3,7 +3,7 @@
 %token <string> STRING
 %token LET IN
 %token PLUS MINUS TIMES DIV EQUAL
-%token LPAREN RPAREN
+%token LPAREN RPAREN COMMA
 %token LINEARIZE
 %token EOF
 %start <Syntax.expr> main
@@ -97,3 +97,5 @@ let atomic_expr :=
       { ELin(f, x, tan) }
   | var = STRING;
       { EVar var }
+  | LPAREN; e1 = expr; COMMA; e2 = expr; RPAREN;
+      { ECouple (e1, e2) }

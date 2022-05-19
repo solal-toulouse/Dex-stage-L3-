@@ -1,5 +1,3 @@
-let f x = 2*x in
-let g h = f (h * 0.4) in
-let x = 2 in
-let x = 3*x in
-(linearize g 10) x
+let f x = ((2, 2)*x*x, x + (1, 1)) in
+let x = (0, 2) in
+(linearize f (1, 2)) x

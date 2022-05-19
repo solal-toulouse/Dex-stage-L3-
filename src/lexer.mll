@@ -33,6 +33,8 @@ rule token = parse
     { LPAREN }
 | ')'
     { RPAREN }
+| ','
+    { COMMA }
 | ['A'-'Z' 'a'-'z' '0'-'9' '_'] + as s
     { STRING s }
 | eof

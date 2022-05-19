@@ -10,3 +10,4 @@ type expr =
 | EDecFunc of string * string * expr * expr
 | EFunc of string * expr
 | ELin of string * expr * expr
+| ECouple of expr * expr

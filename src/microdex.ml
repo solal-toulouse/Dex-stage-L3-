@@ -11,44 +11,95 @@ let counter() =
 
 let fresh_name = counter()
 
-(* The result of a program is always a float *)
-let rec interpret (e : expr) (env_var : float Environnement.t) (env_func : (string * expr) Environnement.t) =
+(* Type result to allow us to have different types of returned values *)
+type result = F of float | C of result * result
+
+let rec sum (x : result) (y : result) = match x, y with
+  | F x', F y' -> F (x' +. y')
+  | C (x1, x2), C (x3, x4) -> C (sum x1 x3, sum x2 x4)
+  | _ -> failwith "Type error"
+
+let rec diff (x : result) (y : result) = match x, y with
+  | F x', F y' -> F (x' -. y')
+  | C (x1, x2), C (x3, x4) -> C (diff x1 x3, diff x2 x4)
+  | _ -> failwith "Type error"
+
+let rec mul (x : result) (y : result) = match x, y with
+  | F x', F y' -> F (x' *. y')
+  | C (x1, x2), C (x3, x4) -> C (mul x1 x3, mul x2 x4)
+  | _ -> failwith "Type error"
+
+let rec div (x : result) (y : result) = match x, y with
+  | F x', F y' -> F (x' /. y')
+  | C (x1, x2), C (x3, x4) -> C (div x1 x3, div x2 x4)
+  | _ -> failwith "Type error"
+
+let rec print_result (x : result) = match x with
+  | F x' ->
+    Printf.fprintf stderr "%f" x'
+  | C (x1, x2) ->
+    Printf.fprintf stderr "(";
+    print_result x1;
+    Printf.fprintf stderr ",";
+    print_result x2;
+    Printf.fprintf stderr ")"
+
+let rec expr_of_result (x : result) = match x with
+  | F x' ->
+    ELiteralF x'
+  | C (x1, x2) ->
+    ECouple (expr_of_result x1, expr_of_result x2)    
+
+(* The interpretation of a program is always a result *)
+let rec interpret (e : expr) (env_var : result Environnement.t) (env_func : (string * expr) Environnement.t) : result =
   match e with
   | EVar var ->
       Environnement.find var env_var
   | ELiteralI i ->
-      float_of_int i
+      F (float_of_int i)
   | ELiteralF f ->
-      f
+      F f
   | EBinOp (e1, OpPlus, e2) ->
-      interpret e1 env_var env_func +. interpret e2 env_var env_func
+      let f1 = interpret e1 env_var env_func
+      and f2 = interpret e2 env_var env_func in
+      sum f1 f2
   | EBinOp (e1, OpMinus, e2) ->
-      interpret e1 env_var env_func -. interpret e2 env_var env_func
+      let f1 = interpret e1 env_var env_func
+      and f2 = interpret e2 env_var env_func in
+      diff f1 f2
   | EBinOp (e1, OpTimes, e2) ->
-      interpret e1 env_var env_func *. interpret e2 env_var env_func
+      let f1 = interpret e1 env_var env_func
+      and f2 = interpret e2 env_var env_func in
+      mul f1 f2
   | EBinOp (e1, OpDiv, e2) ->
-      interpret e1 env_var env_func /. interpret e2 env_var env_func
+      let f1 = interpret e1 env_var env_func
+      and f2 = interpret e2 env_var env_func in
+      div f1 f2
   | EDecVar (name, e2, suite) ->
       let x = interpret e2 env_var env_func in
-      let new_env_var = Environnement.add name x env_var
-      in interpret suite new_env_var env_func
+      let new_env_var = Environnement.add name x env_var in
+      interpret suite new_env_var env_func
   | EDecFunc (f, var, e2, suite) ->
       let new_env_func = Environnement.add f (var, e2) env_func in
       interpret suite env_var new_env_func
   | EFunc (f, e2) ->
-      let (var, f) = Environnement.find f env_func in
+      let (var, e3) = Environnement.find f env_func in
       let x = interpret e2 env_var env_func in
-      let tempo_env_var = Environnement.add var x env_var in
-      interpret f tempo_env_var env_func
+      let new_env_var = Environnement.add var x env_var in
+      interpret e3 new_env_var env_func
   | ELin (f, x, tan) -> 
       let (var, e) = Environnement.find f env_func in
       let h = fresh_name() in
-      let new_env_var = Environnement.add h (interpret tan env_var env_func) (Environnement.add var (interpret x env_var env_func) env_var) in
+      let e2 = interpret x env_var env_func in
+      let e3 = interpret tan env_var env_func in
+      let new_env_var = Environnement.add h e3 (Environnement.add var e2 env_var) in
       let linear = linearize e var x h new_env_var env_func in
       interpret linear new_env_var env_func
+  | ECouple (e1, e2) -> 
+      C (interpret e1 env_var env_func, interpret e2 env_var env_func)
 
-(* linearize(f) return an expression corresponding to the differential of f. *)
-and linearize (e : expr) (var : string) (x : expr) (h : string) (env_var : float Environnement.t) (env_func : (string * expr) Environnement.t): expr =
+(* linearize(f) return an expression corresponding to the differential of f in x evaluated in h. *)
+and linearize (e : expr) (var : string) (x : expr) (h : string) (env_var : result Environnement.t) (env_func : (string * expr) Environnement.t): expr =
   match e with
     | EVar y when y = var -> EVar h
     | EVar y ->
@@ -80,13 +131,15 @@ and linearize (e : expr) (var : string) (x : expr) (h : string) (env_var : float
     | EDecFunc (_, _, _, suite) ->
         linearize suite var x h env_var env_func
     | EFunc (f, xf) ->
-        let tan = Environnement.find h env_var in
+        let tan = expr_of_result (Environnement.find h env_var) in
         let f' = fresh_name() in
         let new_env_func = Environnement.add f' (var, xf) env_func in
-        let h' = ELiteralF(interpret (ELin(f', x, ELiteralF(tan))) env_var new_env_func) in
+        let h' = expr_of_result (interpret (ELin(f', x, tan)) env_var new_env_func) in
         ELin(f, xf, h')
     | ELin (_) ->
         ELiteralF 0.0
+    | ECouple (e1, e2) ->
+        ECouple (linearize e1 var x h env_var env_func, linearize e2 var x h env_var env_func)
 
 
 let process (data : string) =
@@ -95,8 +148,9 @@ let process (data : string) =
     (* Run the parser on this input. *)
     let e : expr = Parser.main Lexer.token lexbuf in
     let v = interpret e Environnement.empty Environnement.empty in
-    Printf.printf "%f\n\n%!" v;
-    print_expr(e);
+    print_result v;
+    Printf.fprintf stderr "\n\n%!";
+    print_expr e;
     Printf.fprintf stderr "\n\n"
   with
   | Lexer.Error msg ->

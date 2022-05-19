@@ -7,7 +7,7 @@ let rec print_expr(e) = match e with
     Printf.fprintf stderr " in \n";
     print_expr(suite)
   | EDecFunc(f, var, e, suite) ->
-    Printf.fprintf stderr "let %s(%s) = " f var;
+    Printf.fprintf stderr "let %s(%s) = \n" f var;
     print_expr(e);
     Printf.fprintf stderr " in \n";
     print_expr(suite)
@@ -52,6 +52,12 @@ and print_atomic_expr(e) = match e with
     print_expr(x);
     Printf.fprintf stderr "))(";
     print_expr(tan);
+    Printf.fprintf stderr ")"
+  | ECouple(e1, e2) ->
+    Printf.fprintf stderr "(";
+    print_expr(e1);
+    Printf.fprintf stderr ",";
+    print_expr(e2);
     Printf.fprintf stderr ")"
   | e -> 
     print_additive_expr(e);
