@@ -4,8 +4,8 @@
 %token LET IN
 %token PLUS MINUS TIMES DIV EQUAL
 %token LPAREN RPAREN
+%token LINEARIZE
 %token EOF
-
 %start <Syntax.expr> main
 %{ open Syntax %}
 
@@ -18,14 +18,14 @@
 let main :=
   e = expr; EOF; { e }
 
-(* An expression is an additive expression or a variable declaration. *)
+(* An expression is an additive expression, a function declaration or a variable declaration. *)
 
 let expr :=
   | e = additive_expr;
       { e }
   | v = variable_declaration;
       { v }
-  | f = fonction_declaration;
+  | f = function_declaration;
       { f }
 
 (* An additive expression is
@@ -48,15 +48,17 @@ let additive_expr :=
   | e1 = additive_expr; op = additive_op; e2 = multiplicative_expr;
       { EBinOp (e1, op, e2) }
 
-(* These are the additive operators and their meaning. *)
+(* These are variables and functions declarations. *)
 
 let variable_declaration :=
-  LET; name = STRING; EQUAL; e1 = expr; IN; e2 = expr;
-      { EDecVar (name, e1, e2) }
+  LET; name = STRING; EQUAL; e = expr; IN; suite = expr;
+      { EDecVar (name, e, suite) }
     
-let fonction_declaration :=
-  LET; name = STRING; var = STRING; EQUAL; e1 = expr; IN; e2 = expr;
-      { EDecFonc (name, var, e1, e2) }
+let function_declaration :=
+  LET; f = STRING; var = STRING; EQUAL; e = expr; IN; suite = expr;
+      { EDecFunc (f, var, e, suite) }
+
+(* These are the additive operators and their meaning. *)
 
 let additive_op ==
   | PLUS;  { OpPlus }
@@ -79,12 +81,8 @@ let multiplicative_op ==
 
 (* An atomic expression is one of:
    an expression between parentheses,
-   an integer literal,
-   an application of a unary operator to an atomic expression. *)
-
-(* Only the last two cases are wrapped in [located]; in the first case, this is
-   not necessary, as the expression already carries a location. Note that, this
-   way, we get tight locations (i.e., the parentheses are not included). *)
+   a float or an integer literal,
+   a variable or a function call. *)
 
 let atomic_expr :=
   | LPAREN; e = additive_expr; RPAREN;
@@ -93,7 +91,9 @@ let atomic_expr :=
       { ELiteralI i }
   | f = FLOAT;
       { ELiteralF f }
+  | f = STRING; e = expr;
+      { EFunc(f, e) }
+  | LPAREN; LINEARIZE; f = STRING; x = expr; RPAREN; tan = expr;
+      { ELin(f, x, tan) }
   | var = STRING;
       { EVar var }
-  | name = STRING; LPAREN; e = expr; RPAREN;
-      { EFonc(name, e) }

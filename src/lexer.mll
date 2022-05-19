@@ -17,6 +17,8 @@ rule token = parse
     { LET }
 | "in"
     { IN }
+| "linearize"
+    { LINEARIZE }
 | '='
     { EQUAL }
 | '+'

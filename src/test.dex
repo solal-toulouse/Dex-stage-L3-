@@ -1,5 +1,5 @@
-let x = 3 in 
-let y = 2 in 
-let x = 4 in
-let f x = 3*x in
-f(x + y)
+let f x = 2*x in
+let g h = f (h * 0.4) in
+let x = 2 in
+let x = 3*x in
+(linearize g 10) x
