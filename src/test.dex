@@ -1,3 +1,10 @@
-let f x = ((2, 2)*x*x, x + (1, 1)) in
-let x = (0, 2) in
-(linearize f (1, 2)) x
+def f (x, y; z) =
+    let (a;) = (x + x) in
+    let (b;) = (a * y) in
+    (b; z);
+
+def main (;) =
+    let (x;) = 2 in
+    let (y;) = 3 in
+    let (;z) = 0l in
+    f (x, y; z)

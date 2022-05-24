@@ -1,156 +1,167 @@
 open Syntax
 open Print
 
+(* names :
+value : x, y, z
+variables : v, v1, v2
+environnements : env, env_nlv, env_lv
+expressions : e, e1, e2 
+listes : ~s
+lineaires : l~
+non_linéaire : nl~ *)
+
+type value = F of float
+type multivalue = MultiValue of value list * value list
+
+let rec print_multi_value (mv : multivalue) =
+  let MultiValue (lvs, nlvs) = mv in
+  Printf.fprintf stderr "(";
+  print_value_list lvs;
+  Printf.fprintf stderr ";";
+  print_value_list nlvs;
+  Printf.fprintf stderr ")"
+
+and print_value_list (l : value list) =
+  match l with
+    | [] -> ()
+    | t::q ->
+      print_value t;
+      print_value_list q
+
+and print_value (v : value) =
+  let F f = v in
+  Printf.fprintf stderr "%f" f
+
+let nlbinop (v1 : multivalue) (op : binop) (v2 : multivalue) : multivalue =
+  match v1, v2 with
+    | MultiValue ([F f1], []), MultiValue ([F f2], []) ->
+      (match op with
+        | OpPlus -> MultiValue ([F (f1 +. f2)], [])
+        | OpMinus -> MultiValue ([F (f1 -. f2)], [])
+        | OpTimes -> MultiValue ([F (f1 *. f2)], [])
+        | OpDiv -> MultiValue ([F (f1 /. f2)], []))
+    | _ -> failwith"binary operation between unauthorize types"
+
+let unop (v : multivalue) (op : unop) : multivalue =
+  match v with
+    | MultiValue ([F f], []) ->
+      (match op with
+        | OpCos -> MultiValue([F (cos f)], [])
+        | OpSin -> MultiValue([F (sin f)], [])
+        | OpExp -> MultiValue([F (exp f)], []))
+    | _ -> failwith"unary operation on an unauthorized type"
+
+let linadd (v1 : multivalue) (v2 : multivalue) : multivalue =
+  match v1, v2 with
+    | MultiValue ([], [F f1]), MultiValue ([], [F f2]) ->
+      MultiValue ([], [F (f1 +. f2)])
+    | _ -> failwith"binary operation between non authorize types"
+
+let linmul (v1 : multivalue) (v2 : multivalue) : multivalue =
+  match v1, v2 with
+    | MultiValue ([], [F f1]), MultiValue ([], [F f2]) ->
+      MultiValue ([], [F (f1 *. f2)])
+    | _ -> failwith"binary operation between non authorize types"
+
+(* How to stock variables and their value or functions *)
 module Environnement = Map.Make(String)
+type environnementVariables = value Environnement.t
+type environnementFunctions = ((var list) * (var list) * expr) Environnement.t
+type environnement = { env_nlv : environnementVariables; env_lv : environnementVariables; env_f : environnementFunctions}
 
-let counter() =
-  let i = ref 0 in
-  function () ->
-    incr i;
-    (string_of_int !i) ^ "*"
+let empty_environnement () =
+  { env_nlv = Environnement.empty; env_lv = Environnement.empty; env_f = Environnement.empty }
 
-let fresh_name = counter()
+let print_env_var (env : environnement) =
+  let env_nlv, env_lv = env.env_nlv, env.env_lv in
+  let l1, l2 = Environnement.bindings env_nlv, Environnement.bindings env_lv in
+  let rec aux l = match l with
+    | [] -> ()
+    | (k, x)::q ->
+      Printf.fprintf stderr "%s," k;
+      print_value x;
+      Printf.fprintf stderr "\n";
+      aux q
+  in Printf.fprintf stderr "non linear : \n";
+  aux l1;
+  Printf.fprintf stderr "linear : \n";
+  aux l2
 
-(* Type result to allow us to have different types of returned values *)
-type result = F of float | C of result * result
+let read_values (env : environnement) (nlvs : var list) (lvs : var list) : multivalue =
+  let env_nlvs, env_lvs = env.env_nlv, env.env_lv in
+  let rec aux (env_v : environnementVariables) (vs : var list) : value list =
+    match vs with
+      | [] -> []
+      | a::b ->
+        let x = Environnement.find a env_v in
+        x :: (aux env_v b)
+  in MultiValue (aux env_nlvs nlvs, aux env_lvs lvs)
 
-let rec sum (x : result) (y : result) = match x, y with
-  | F x', F y' -> F (x' +. y')
-  | C (x1, x2), C (x3, x4) -> C (sum x1 x3, sum x2 x4)
-  | _ -> failwith "Type error"
+let add_variables (env : environnement) (nlvs : var list) (lvs : var list) (nlxs : value list) (lxs : value list) : environnement =
+  let env_nlv, env_lv, env_f = env.env_nlv, env.env_lv, env.env_f in
+  let rec aux vs xs env_var =
+    match vs, xs with
+      | [], [] -> env_var
+      | [], _| _, [] -> failwith"type error"
+      | a::b, c::d ->
+        let new_env_var = Environnement.add a c env_var in
+        aux b d new_env_var
+  in { env_nlv = aux nlvs nlxs env_nlv ; env_lv = aux lvs lxs env_lv; env_f = env_f}
 
-let rec diff (x : result) (y : result) = match x, y with
-  | F x', F y' -> F (x' -. y')
-  | C (x1, x2), C (x3, x4) -> C (diff x1 x3, diff x2 x4)
-  | _ -> failwith "Type error"
+let find (env : environnement) (v : var) : multivalue =
+  try
+    MultiValue ([Environnement.find v env.env_nlv], [])
+  with
+    Not_found -> MultiValue ([], [Environnement.find v env.env_lv])
 
-let rec mul (x : result) (y : result) = match x, y with
-  | F x', F y' -> F (x' *. y')
-  | C (x1, x2), C (x3, x4) -> C (mul x1 x3, mul x2 x4)
-  | _ -> failwith "Type error"
-
-let rec div (x : result) (y : result) = match x, y with
-  | F x', F y' -> F (x' /. y')
-  | C (x1, x2), C (x3, x4) -> C (div x1 x3, div x2 x4)
-  | _ -> failwith "Type error"
-
-let rec print_result (x : result) = match x with
-  | F x' ->
-    Printf.fprintf stderr "%f" x'
-  | C (x1, x2) ->
-    Printf.fprintf stderr "(";
-    print_result x1;
-    Printf.fprintf stderr ",";
-    print_result x2;
-    Printf.fprintf stderr ")"
-
-let rec expr_of_result (x : result) = match x with
-  | F x' ->
-    ELiteralF x'
-  | C (x1, x2) ->
-    ECouple (expr_of_result x1, expr_of_result x2)    
-
-(* The interpretation of a program is always a result *)
-let rec interpret (e : expr) (env_var : result Environnement.t) (env_func : (string * expr) Environnement.t) : result =
+let rec execute (env : environnement) (e : expr) : multivalue =
   match e with
-  | EVar var ->
-      Environnement.find var env_var
-  | ELiteralI i ->
-      F (float_of_int i)
-  | ELiteralF f ->
-      F f
-  | EBinOp (e1, OpPlus, e2) ->
-      let f1 = interpret e1 env_var env_func
-      and f2 = interpret e2 env_var env_func in
-      sum f1 f2
-  | EBinOp (e1, OpMinus, e2) ->
-      let f1 = interpret e1 env_var env_func
-      and f2 = interpret e2 env_var env_func in
-      diff f1 f2
-  | EBinOp (e1, OpTimes, e2) ->
-      let f1 = interpret e1 env_var env_func
-      and f2 = interpret e2 env_var env_func in
-      mul f1 f2
-  | EBinOp (e1, OpDiv, e2) ->
-      let f1 = interpret e1 env_var env_func
-      and f2 = interpret e2 env_var env_func in
-      div f1 f2
-  | EDecVar (name, e2, suite) ->
-      let x = interpret e2 env_var env_func in
-      let new_env_var = Environnement.add name x env_var in
-      interpret suite new_env_var env_func
-  | EDecFunc (f, var, e2, suite) ->
-      let new_env_func = Environnement.add f (var, e2) env_func in
-      interpret suite env_var new_env_func
-  | EFunc (f, e2) ->
-      let (var, e3) = Environnement.find f env_func in
-      let x = interpret e2 env_var env_func in
-      let new_env_var = Environnement.add var x env_var in
-      interpret e3 new_env_var env_func
-  | ELin (f, x, tan) -> 
-      let (var, e) = Environnement.find f env_func in
-      let h = fresh_name() in
-      let e2 = interpret x env_var env_func in
-      let e3 = interpret tan env_var env_func in
-      let new_env_var = Environnement.add h e3 (Environnement.add var e2 env_var) in
-      let linear = linearize e var x h new_env_var env_func in
-      interpret linear new_env_var env_func
-  | ECouple (e1, e2) -> 
-      C (interpret e1 env_var env_func, interpret e2 env_var env_func)
+    | EMultiValue (nlvs, lvs) -> read_values env nlvs lvs
+    | EDec (nlvs, lvs, e1, e2) ->
+      let MultiValue (nlxs, lxs) = execute env e1 in
+      let new_env = add_variables env nlvs lvs nlxs lxs
+      in execute new_env e2
+    | EFunCall (f, nlv1s, lv1s) -> 
+      let nlv2s, lv2s, e = Environnement.find f env.env_f in
+      let MultiValue (nlxs, lxs) = read_values env nlv1s lv1s in
+      let new_env = add_variables env nlv2s lv2s nlxs lxs in
+      execute new_env e
+    | ENonLinLiteral f -> MultiValue ([F f], [])
+    | EVar v ->
+      find env v
+    | ENonLinBinOp (v1, op, v2) -> 
+      let x1, x2 = find env v1, find env v2 in
+      nlbinop x1 op x2
+    | ENonLinUnOp (op, v) ->
+      let x = find env v in
+      unop x op
+    | ELinAdd (v1, v2) ->
+      let x1, x2 = find env v1, find env v2 in
+      linadd x1 x2
+    | ELinMul (v1, v2) ->
+      let x1, x2 = find env v1, find env v2 in
+      linmul x1 x2
+    | ELinZero -> MultiValue ([], [F 0.0])
 
-(* linearize(f) return an expression corresponding to the differential of f in x evaluated in h. *)
-and linearize (e : expr) (var : string) (x : expr) (h : string) (env_var : result Environnement.t) (env_func : (string * expr) Environnement.t): expr =
-  match e with
-    | EVar y when y = var -> EVar h
-    | EVar y ->
-        let y' = y ^ "'" in
-        if (Environnement.mem y' env_var) then
-          EVar y'
-        else ELiteralI 0
-    | ELiteralI _ -> ELiteralI 0
-    | ELiteralF _ -> ELiteralF 0.0
-    | EBinOp (e1, OpPlus, e2) ->
-        EBinOp (linearize e1 var x h env_var env_func, OpPlus, linearize e2 var x h env_var env_func)
-    | EBinOp (e1, OpMinus, e2) ->
-        EBinOp (linearize e1 var x h env_var env_func, OpMinus, linearize e2 var x h env_var env_func)
-    | EBinOp (e1, OpTimes, e2) ->
-        let e1' = EBinOp(linearize e1 var x h env_var env_func, OpTimes, e2)
-        and e2' = EBinOp(e1, OpTimes, linearize e2 var x h env_var env_func)
-        in EBinOp (e1', OpPlus, e2')
-    | EBinOp (e1, OpDiv, e2) ->
-        let e1' = linearize e1 var x h env_var env_func
-        and e2' = linearize e2 var x h env_var env_func in
-        let num = EBinOp (EBinOp(e1', OpTimes, e2), OpMinus, EBinOp(e1, OpTimes, e2'))
-        and denom = EBinOp (e2, OpTimes, e2) in
-        EBinOp (num, OpDiv, denom)
-    | EDecVar (name, e2, suite) ->
-        let name' = name ^ "'" in
-        let e2' = interpret (linearize e2 var x h env_var env_func) env_var env_func in
-        let new_env_var = Environnement.add name' e2' env_var in
-        linearize suite var x h new_env_var env_func
-    | EDecFunc (_, _, _, suite) ->
-        linearize suite var x h env_var env_func
-    | EFunc (f, xf) ->
-        let tan = expr_of_result (Environnement.find h env_var) in
-        let f' = fresh_name() in
-        let new_env_func = Environnement.add f' (var, xf) env_func in
-        let h' = expr_of_result (interpret (ELin(f', x, tan)) env_var new_env_func) in
-        ELin(f, xf, h')
-    | ELin (_) ->
-        ELiteralF 0.0
-    | ECouple (e1, e2) ->
-        ECouple (linearize e1 var x h env_var env_func, linearize e2 var x h env_var env_func)
+let rec interpret (env : environnement) (p : prog) =
+  match p with
+    | [] -> failwith"empty program"
+    | [FunDec ("main", [], [], e)] ->
+      execute env e
+    | (FunDec (f, nlvs, lvs, e))::q ->
+      let new_env_f = Environnement.add f (nlvs, lvs, e) env.env_f
+      in interpret {env_nlv = env.env_nlv; env_lv = env.env_lv; env_f = new_env_f } q
 
 
 let process (data : string) =
   let lexbuf = Lexing.from_string data in
   try
     (* Run the parser on this input. *)
-    let e : expr = Parser.main Lexer.token lexbuf in
-    let v = interpret e Environnement.empty Environnement.empty in
-    print_result v;
+    let p : prog = Parser.main Lexer.token lexbuf in
+    let v = interpret (empty_environnement ()) p in
+    print_multi_value v;
     Printf.fprintf stderr "\n\n%!";
-    print_expr e;
+    print_prog p;
     Printf.fprintf stderr "\n\n"
   with
   | Lexer.Error msg ->

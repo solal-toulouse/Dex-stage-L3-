@@ -9,16 +9,22 @@
 rule token = parse
 | [' ' '\t' '\n']
     { token lexbuf }
-| ['0'-'9']+ as i
-    { INT (int_of_string i) }
 | ['0'-'9']+ ('.' ['0' - '9']) ? as f
     { FLOAT (float_of_string f)}
 | "let"
     { LET }
+| "def"
+    { DEF }
 | "in"
     { IN }
-| "linearize"
-    { LINEARIZE }
+| "sin"
+    { SIN }
+| "cos"
+    { COS }
+| "exp"
+    { EXP }
+| "0l"
+    { ZERO }
 | '='
     { EQUAL }
 | '+'
@@ -29,12 +35,18 @@ rule token = parse
     { TIMES }
 | '/'
     { DIV }
+| "+."
+    { LINPLUS }
+| "*."
+    { LINTIMES }
 | '('
     { LPAREN }
 | ')'
     { RPAREN }
 | ','
     { COMMA }
+| ';'
+    { SEMICOLON }
 | ['A'-'Z' 'a'-'z' '0'-'9' '_'] + as s
     { STRING s }
 | eof

@@ -4,6 +4,7 @@
 
 (menhir
   (modules parser)
+  (flags --strict --explain)
 )
 
 (executable
