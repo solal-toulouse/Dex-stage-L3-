@@ -4,8 +4,10 @@
 %token ZERO
 %token PLUS MINUS TIMES DIV EQUAL
 %token LINPLUS LINTIMES
+%token R
 %token SIN COS EXP
-%token LPAREN RPAREN COMMA SEMICOLON
+%token DROP DUP
+%token LPAREN RPAREN COMMA SEMICOLON DOUBLEDOTS
 %token EOF
 %start <Syntax.prog> main
 %{ open Syntax %}
@@ -25,20 +27,32 @@ let prog :=
     { l }
 
 let function_declaration :=
-  DEF; f = STRING; LPAREN; nlvar = separated_list(COMMA, STRING); SEMICOLON; lvar = separated_list(COMMA, STRING); RPAREN; EQUAL; e = expr;
-    { FunDec (f, nlvar, lvar, e) }
+  | DEF; f = STRING; LPAREN; nlvs = separated_list(COMMA, STRING); DOUBLEDOTS; nlts = separated_list(COMMA, value_type); SEMICOLON; lvs = separated_list(COMMA, STRING); DOUBLEDOTS; lts = separated_list(COMMA, value_type); RPAREN; EQUAL; e = expr;
+    { FunDec (f, nlvs, nlts, lvs, lts, e) }
+  | DEF; f = STRING; LPAREN; nlvs = separated_list(COMMA, STRING); DOUBLEDOTS; nlts = separated_list(COMMA, value_type); SEMICOLON; RPAREN; EQUAL; e = expr;
+    { FunDec (f, nlvs, nlts, [], [], e) }
+  | DEF; f = STRING; LPAREN; SEMICOLON; lvs = separated_list(COMMA, STRING); DOUBLEDOTS; lts = separated_list(COMMA, value_type); RPAREN; EQUAL; e = expr;
+    { FunDec (f, [], [], lvs, lts, e) }
+  | DEF; f = STRING; LPAREN; SEMICOLON; RPAREN; EQUAL; e = expr;
+    { FunDec (f, [], [], [], [], e) }
 
 let expr :=
-  | LPAREN; nlvar = separated_list(COMMA, STRING); SEMICOLON; lvar = separated_list(COMMA, STRING); RPAREN;
-    { EMultiValue (nlvar, lvar) }
-  | LET; LPAREN; nlvar = separated_list(COMMA, STRING); SEMICOLON; lvar = separated_list(COMMA, STRING); RPAREN; EQUAL; e_op = expr; IN; e_mn = expr;
-    { EDec (nlvar, lvar, e_op, e_mn) }
+  | LPAREN; nlvs = separated_list(COMMA, STRING); SEMICOLON; lvs = separated_list(COMMA, STRING); RPAREN;
+    { EMultiValue (nlvs, lvs) }
+  | LET; LPAREN; nlvs = separated_list(COMMA, STRING); DOUBLEDOTS; nlts = separated_list(COMMA, value_type); SEMICOLON; lvs = separated_list(COMMA, STRING); DOUBLEDOTS; lts = separated_list(COMMA, value_type); RPAREN; EQUAL; e1 = expr; IN; e2 = expr;
+    { EDec (nlvs, nlts, lvs, lts, e1, e2) }
+  | LET; LPAREN; nlvs = separated_list(COMMA, STRING); DOUBLEDOTS; nlts = separated_list(COMMA, value_type); SEMICOLON; RPAREN; EQUAL; e1 = expr; IN; e2 = expr;
+    { EDec (nlvs, nlts, [], [], e1, e2) }
+  | LET; LPAREN; SEMICOLON; lvs = separated_list(COMMA, STRING); DOUBLEDOTS; lts = separated_list(COMMA, value_type); RPAREN; EQUAL; e1 = expr; IN; e2 = expr;
+    { EDec ([], [], lvs, lts, e1, e2) }
+  | LET; LPAREN; SEMICOLON; RPAREN; EQUAL; e1 = expr; IN; e2 = expr;
+    { EDec ([], [], [], [], e1, e2) }
   /* | LET; LPAREN; l = separated_list(COMMA, STRING); SEMICOLON; RPAREN; EQUAL; t = tuple; IN; e_mn = expr;
     { EUnpack (l, t, e_mn) } */
   /* | LET; LPAREN; SEMICOLON; l = separated_list(COMMA, STRING); RPAREN; EQUAL; t = tuple; IN; e_mn = expr;
     { EUnpack (l, t, e_mn) } */
-  | f = STRING; LPAREN; l1 = separated_list(COMMA, STRING); SEMICOLON; l2 = separated_list(COMMA, STRING); RPAREN;
-    { EFunCall (f, l1, l2) }
+  | f = STRING; LPAREN; nlvs = separated_list(COMMA, STRING); SEMICOLON; lvs = separated_list(COMMA, STRING); RPAREN;
+    { EFunCall (f, nlvs, lvs) }
   | v1 = STRING; LINPLUS; v2 = STRING;
     { ELinAdd (v1, v2) }
   | v1 = STRING; LINTIMES; v2 = STRING;
@@ -55,12 +69,20 @@ let expr :=
     { ENonLinUnOp (op, v) }
   | v1 = STRING; op = binop; v2 = STRING;
     { ENonLinBinOp (v1, op, v2) }
-  | ZERO;
-    { ELinZero }
+  | LPAREN; ZERO; DOUBLEDOTS; t = value_type; RPAREN;
+    { ELinZero t }
+  | DUP; LPAREN; v = STRING; RPAREN;
+    { Dup v }
+  | DROP; LPAREN; v = STRING; RPAREN;
+    { Drop v }
 
 /* let tuple :=
   LPAREN; l = separated_list(COMMA, STRING); RPAREN;
     { ETuple l } */
+
+let value_type ==
+  | R;
+    { R }
 
 let unop ==
   | SIN;

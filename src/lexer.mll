@@ -25,6 +25,12 @@ rule token = parse
     { EXP }
 | "0l"
     { ZERO }
+| "dup"
+    { DUP }
+| "drop"
+    { DROP }
+| "real"
+    { R }
 | '='
     { EQUAL }
 | '+'
@@ -47,6 +53,8 @@ rule token = parse
     { COMMA }
 | ';'
     { SEMICOLON }
+| ':'
+    { DOUBLEDOTS }
 | ['A'-'Z' 'a'-'z' '0'-'9' '_'] + as s
     { STRING s }
 | eof

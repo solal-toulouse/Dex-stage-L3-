@@ -5,8 +5,24 @@ let rec print_string_list l = match l with
   | [a] ->
     Printf.fprintf stderr "%s" a
   | t::q ->
-    Printf.fprintf stderr "%s," t;
+    Printf.fprintf stderr "%s, " t;
     print_string_list q
+
+let print_type (t : value_type) = 
+  match t with
+    | R -> Printf.fprintf stderr "real"
+  
+let rec print_var_list vs ts = match vs, ts with
+  | [], [] -> ()
+  | [v], [t] ->
+    Printf.fprintf stderr "%s : " v;
+    print_type t
+  | v::q1, t::q2 ->
+    Printf.fprintf stderr "%s : " v;
+    print_type t;
+    Printf.fprintf stderr ", ";
+    print_var_list q1 q2
+  | _ -> failwith"wrong type"
 
 let rec print_expr (e : expr) = match e with
   | ENonLinLiteral f ->
@@ -24,19 +40,21 @@ let rec print_expr (e : expr) = match e with
     Printf.fprintf stderr "%s +. %s" v1 v2
   | ELinMul (v1, v2) ->
     Printf.fprintf stderr "%s *. %s" v1 v2
-  | ELinZero ->
-    Printf.fprintf stderr "0"
-  | EMultiValue (l1, l2) ->
-    Printf.fprintf stderr "(";
-    print_string_list l1;
-    Printf.fprintf stderr ";";
-    print_string_list l2;
+  | ELinZero t ->
+    Printf.fprintf stderr "(0 : ";
+    print_type t;
     Printf.fprintf stderr ")"
-  | EDec (l1, l2, e_op, e_mn) ->
+  | EMultiValue (nlvs, lvs) ->
+    Printf.fprintf stderr "(";
+    print_string_list nlvs;
+    Printf.fprintf stderr "; ";
+    print_string_list lvs;
+    Printf.fprintf stderr ")"
+  | EDec (nlvs, nlts, lvs, lts, e_op, e_mn) ->
     Printf.fprintf stderr "let (";
-    print_string_list l1;
-    Printf.fprintf stderr ";";
-    print_string_list l2;
+    print_var_list nlvs nlts;
+    Printf.fprintf stderr "; ";
+    print_var_list lvs lts;
     Printf.fprintf stderr ") = ";
     print_expr e_op;
     Printf.fprintf stderr " in \n";
@@ -44,9 +62,13 @@ let rec print_expr (e : expr) = match e with
   | EFunCall (f, l1, l2) ->
     Printf.fprintf stderr "%s(" f;
     print_string_list l1;
-    Printf.fprintf stderr ";";
+    Printf.fprintf stderr "; ";
     print_string_list l2;
     Printf.fprintf stderr ")"
+  | Dup v ->
+    Printf.fprintf stderr "dup(%s)" v
+  | Drop v ->
+    Printf.fprintf stderr "drop(%s)" v
 
 and print_binop(op) = match op with
   | OpTimes -> Printf.fprintf stderr "*"
@@ -61,11 +83,11 @@ and print_unop(op) = match op with
 
 and print_prog (p : prog) = match p with
   | [] -> ()
-  | FunDec (f, nlvar, lvar, e)::q ->
+  | FunDec (f, nlvs, nlts, lvs, lts, e)::q ->
     Printf.fprintf stderr "def %s(" f;
-    print_string_list nlvar;
-    Printf.fprintf stderr ";";
-    print_string_list lvar;
+    print_var_list nlvs nlts;
+    Printf.fprintf stderr "; ";
+    print_var_list lvs lts;
     Printf.fprintf stderr ") = \n";
     print_expr e;
     Printf.fprintf stderr "\n\n";

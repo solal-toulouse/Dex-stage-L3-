@@ -1,10 +1,12 @@
-def f (x, y; z) =
-    let (a;) = (x + x) in
-    let (b;) = (a * y) in
-    (b; z);
+def f (x, y : real, real; z : real) =
+    let (a : real;) = x + x in
+    let (b : real;) = (a * y) in
+    let (;c : real) = b *. z in
+    (b; c);
 
 def main (;) =
-    let (x;) = 2 in
-    let (y;) = 3 in
-    let (;z) = 0l in
-    f (x, y; z)
+    let (x : real;) = 2 in
+    let (x2 : real;) = sin(x) in
+    let (y : real;) = 3 in
+    let (;z : real) = (0l : real) in
+    f (x2, y; z)
