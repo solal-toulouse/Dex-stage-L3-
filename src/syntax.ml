@@ -13,10 +13,10 @@ type var = string
 
 type funvar = string
 
-type value = R of float
+type value = Real of float | Tuple of (value list)
 type multivalue = MultiValue of value list * value list
 
-type value_type = R
+type value_type = Real | Tuple of (value_type list)
 type multivalue_type = MultiValueType of value_type list * value_type list
 
 type expr =
@@ -26,11 +26,12 @@ type expr =
 | ENonLinUnOp of unop * var
 | ELinAdd of var * var
 | ELinMul of var * var
-(* | ETuple of string list *)
+| ETuple of var list
 | ELinZero of value_type
 | EMultiValue of (var list) * (var list)
 | EDec of (var list) * (value_type list) * (var list) * (value_type list) * expr * expr
-(* | EUnpack of (string list)  * expr * expr *)
+| ENonLinUnpack of (var list) * (value_type list) * var * expr
+| ELinUnpack of (var list) * (value_type list) * var * expr
 | EFunCall of funvar * (var list) * (var list)
 | Dup of var
 | Drop of var

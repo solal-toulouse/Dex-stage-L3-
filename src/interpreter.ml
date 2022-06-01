@@ -1,79 +1,51 @@
 open Syntax
 
-let rec print_multivalue (mv : multivalue) =
-  let MultiValue (lvs, nlvs) = mv in
-  Printf.fprintf stderr "(";
-  print_value_list lvs;
-  Printf.fprintf stderr "; ";
-  print_value_list nlvs;
-  Printf.fprintf stderr ")"
-
-and print_value_list (l : value list) =
-  match l with
-    | [] -> ()
-    | t::[] ->
-      print_value t
-    | t::q ->
-      print_value t;
-      Printf.fprintf stderr ",";
-      print_value_list q
-
-and print_value (v : value) =
-  let R f = v in
-  Printf.fprintf stderr "%f" f
-
 let nlbinop (v1 : multivalue) (op : binop) (v2 : multivalue) : multivalue =
   match v1, v2 with
-    | MultiValue ([R f1], []), MultiValue ([R f2], []) ->
+    | MultiValue ([Real f1], []), MultiValue ([Real f2], []) ->
       (match op with
-        | OpPlus -> MultiValue ([R (f1 +. f2)], [])
-        | OpMinus -> MultiValue ([R (f1 -. f2)], [])
-        | OpTimes -> MultiValue ([R (f1 *. f2)], [])
-        | OpDiv -> MultiValue ([R (f1 /. f2)], []))
+        | OpPlus -> MultiValue ([Real (f1 +. f2)], [])
+        | OpMinus -> MultiValue ([Real (f1 -. f2)], [])
+        | OpTimes -> MultiValue ([Real (f1 *. f2)], [])
+        | OpDiv -> MultiValue ([Real (f1 /. f2)], []))
     | _ -> failwith"binary operation between unauthorize types"
 
 let unop (v : multivalue) (op : unop) : multivalue =
   match v with
-    | MultiValue ([R f], []) ->
+    | MultiValue ([Real f], []) ->
       (match op with
-        | OpCos -> MultiValue([R (cos f)], [])
-        | OpSin -> MultiValue([R (sin f)], [])
-        | OpExp -> MultiValue([R (exp f)], []))
+        | OpCos -> MultiValue([Real (cos f)], [])
+        | OpSin -> MultiValue([Real (sin f)], [])
+        | OpExp -> MultiValue([Real (exp f)], []))
     | _ -> failwith"unary operation on an unauthorized type"
 
 let linadd (v1 : multivalue) (v2 : multivalue) : multivalue =
   match v1, v2 with
-    | MultiValue ([], [R f1]), MultiValue ([], [R f2]) ->
-      MultiValue ([], [R (f1 +. f2)])
+    | MultiValue ([], [Real f1]), MultiValue ([], [Real f2]) ->
+      MultiValue ([], [Real (f1 +. f2)])
     | _ -> failwith"binary operation between non authorize types"
 
 let linmul (v1 : multivalue) (v2 : multivalue) : multivalue =
   match v1, v2 with
-    | MultiValue ([], [R f1]), MultiValue ([R f2], []) ->
-      MultiValue ([], [R (f1 *. f2)])
-    | MultiValue ([R f1], []), MultiValue ([], [R f2]) ->
-    MultiValue ([], [R (f1 *. f2)])
+    | MultiValue ([], [Real f1]), MultiValue ([Real f2], []) ->
+      MultiValue ([], [Real (f1 *. f2)])
+    | MultiValue ([Real f1], []), MultiValue ([], [Real f2]) ->
+    MultiValue ([], [Real (f1 *. f2)])
     | _ -> failwith"binary operation between non authorize types"
+
+let rec zero (t : value_type) : value =
+  match t with
+    | Real -> Real 0.0
+    | Tuple ([]) -> Tuple []
+    | Tuple (t::q) -> 
+      match zero (Tuple q) with
+        | Tuple z -> Tuple ((zero t)::z)
+        | _ -> failwith"weird"
 
 (* How to stock variables and their value or functions *)
 
 let empty_environnement () =
   { env_nlv = Environnement.empty; env_lv = Environnement.empty; env_f = Environnement.empty }
-
-let print_env_var (env : environnement) =
-  let env_nlv, env_lv = env.env_nlv, env.env_lv in
-  let l1, l2 = Environnement.bindings env_nlv, Environnement.bindings env_lv in
-  let rec aux l = match l with
-    | [] -> ()
-    | (k, x)::q ->
-      Printf.fprintf stderr "%s," k;
-      print_value x;
-      Printf.fprintf stderr "\n";
-      aux q
-  in Printf.fprintf stderr "non linear : \n";
-  aux l1;
-  Printf.fprintf stderr "linear : \n";
-  aux l2
 
 let read_values (env : environnement) (nlvs : var list) (lvs : var list) : multivalue =
   let env_nlvs, env_lvs = env.env_nlv, env.env_lv in
@@ -84,6 +56,21 @@ let read_values (env : environnement) (nlvs : var list) (lvs : var list) : multi
         let x = Environnement.find a env_v in
         x :: (aux env_v b)
   in MultiValue (aux env_nlvs nlvs, aux env_lvs lvs)
+
+let read_tuple (env : environnement) (vs : var list) : multivalue =
+  let rec aux (env_v : environnementVariables) (vs : var list) : value =
+    match vs with
+      | [] -> Tuple []
+      | v::q ->
+        let x = Environnement.find v env_v in
+        (match aux env_v q with
+          | Tuple xs ->
+            Tuple (x::xs)
+          | _ -> failwith"weird")
+  in try
+    MultiValue ([aux env.env_nlv vs], [])
+  with
+    Not_found -> MultiValue ([], [aux env.env_lv vs])
 
 let add_variables (env : environnement) (nlvs : var list) (lvs : var list) (nlxs : value list) (lxs : value list) : environnement =
   let env_nlv, env_lv, env_f = env.env_nlv, env.env_lv, env.env_f in
@@ -102,7 +89,7 @@ let find (env : environnement) (v : var) : multivalue =
   with
     Not_found -> MultiValue ([], [Environnement.find v env.env_lv])
 
-let rec execute (env : environnement) (e : expr) : multivalue =
+  let rec execute (env : environnement) (e : expr) : multivalue =
   match e with
     | EMultiValue (nlvs, lvs) -> read_values env nlvs lvs
     | EDec (nlvs, _, lvs, _, e1, e2) ->
@@ -114,7 +101,7 @@ let rec execute (env : environnement) (e : expr) : multivalue =
       let MultiValue (nlxs, lxs) = read_values env nlv1s lv1s in
       let new_env = add_variables env nlv2s lv2s nlxs lxs in
       execute new_env e
-    | ENonLinLiteral f -> MultiValue ([R f], [])
+    | ENonLinLiteral f -> MultiValue ([Real f], [])
     | EVar v ->
       find env v
     | ENonLinBinOp (v1, op, v2) -> 
@@ -129,13 +116,28 @@ let rec execute (env : environnement) (e : expr) : multivalue =
     | ELinMul (v1, v2) ->
       let x1, x2 = find env v1, find env v2 in
       linmul x1 x2
-    | ELinZero R -> MultiValue ([], [R 0.0])
+    | ELinZero t ->
+      MultiValue ([], [zero t])
     | Dup v -> 
       (match read_values env [] [v] with
         | MultiValue ([], [x]) ->
             MultiValue ([], [x; x])
         | _ -> failwith"type error")
     | Drop _ -> MultiValue ([], [])
+    | ETuple vs ->
+      read_tuple env vs
+    | ENonLinUnpack (vs, _, v, e') ->
+      (match find env v with
+        | MultiValue ([Tuple xs], []) -> 
+          let new_env = add_variables env vs [] xs [] in
+          execute new_env e'
+        | _ -> failwith"try to unpack a tuple with the wrong number of variables")
+    | ELinUnpack (vs, _, v, e') ->
+      (match find env v with
+        | MultiValue ([], [Tuple xs]) -> 
+          let new_env = add_variables env [] vs [] xs in
+          execute new_env e'
+        | _ -> failwith"try to unpack a tuple with the wrong number of variables")
 
 let rec interpret (env : environnement) (p : prog) =
   match p with

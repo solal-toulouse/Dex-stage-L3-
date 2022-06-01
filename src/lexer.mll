@@ -30,7 +30,7 @@ rule token = parse
 | "drop"
     { DROP }
 | "real"
-    { R }
+    { REAL }
 | '='
     { EQUAL }
 | '+'
@@ -49,6 +49,10 @@ rule token = parse
     { LPAREN }
 | ')'
     { RPAREN }
+| '['
+    { LHOOK }
+| ']'
+    { RHOOK }
 | ','
     { COMMA }
 | ';'

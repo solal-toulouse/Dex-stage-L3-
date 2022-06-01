@@ -4,10 +4,11 @@
 %token ZERO
 %token PLUS MINUS TIMES DIV EQUAL
 %token LINPLUS LINTIMES
-%token R
+%token REAL
 %token SIN COS EXP
 %token DROP DUP
-%token LPAREN RPAREN COMMA SEMICOLON DOUBLEDOTS
+%token COMMA SEMICOLON DOUBLEDOTS
+%token LPAREN RPAREN LHOOK RHOOK
 %token EOF
 %start <Syntax.prog> main
 %{ open Syntax %}
@@ -47,10 +48,10 @@ let expr :=
     { EDec ([], [], lvs, lts, e1, e2) }
   | LET; LPAREN; SEMICOLON; RPAREN; EQUAL; e1 = expr; IN; e2 = expr;
     { EDec ([], [], [], [], e1, e2) }
-  /* | LET; LPAREN; l = separated_list(COMMA, STRING); SEMICOLON; RPAREN; EQUAL; t = tuple; IN; e_mn = expr;
-    { EUnpack (l, t, e_mn) } */
-  /* | LET; LPAREN; SEMICOLON; l = separated_list(COMMA, STRING); RPAREN; EQUAL; t = tuple; IN; e_mn = expr;
-    { EUnpack (l, t, e_mn) } */
+  | LET; LPAREN; LHOOK; vs = separated_list(COMMA, STRING); RHOOK; DOUBLEDOTS; LHOOK; ts = separated_list(COMMA, value_type); RHOOK; SEMICOLON; RPAREN; EQUAL; v = STRING; IN; e = expr;
+    { ENonLinUnpack (vs, ts, v, e) }
+  | LET; LPAREN; SEMICOLON; LHOOK; vs = separated_list(COMMA, STRING); RHOOK; DOUBLEDOTS; LHOOK; ts = separated_list(COMMA, value_type); RHOOK; RPAREN; EQUAL; v = STRING; IN; e = expr;
+    { ELinUnpack (vs, ts, v, e) }
   | f = STRING; LPAREN; nlvs = separated_list(COMMA, STRING); SEMICOLON; lvs = separated_list(COMMA, STRING); RPAREN;
     { EFunCall (f, nlvs, lvs) }
   | v1 = STRING; LINPLUS; v2 = STRING;
@@ -63,8 +64,8 @@ let expr :=
     { EVar v }
   | lit = FLOAT;
     { ENonLinLiteral lit }
-  /* | t = tuple;
-    { t } */
+  | LHOOK; vs = separated_list(COMMA, STRING); RHOOK;
+    { ETuple vs }
   | op = unop; LPAREN; v = STRING; RPAREN;
     { ENonLinUnOp (op, v) }
   | v1 = STRING; op = binop; v2 = STRING;
@@ -76,13 +77,11 @@ let expr :=
   | DROP; LPAREN; v = STRING; RPAREN;
     { Drop v }
 
-/* let tuple :=
-  LPAREN; l = separated_list(COMMA, STRING); RPAREN;
-    { ETuple l } */
-
 let value_type ==
-  | R;
-    { R }
+  | REAL;
+    { Real }
+  | LHOOK; ts = separated_list(COMMA, value_type); RHOOK;
+    { Tuple ts }
 
 let unop ==
   | SIN;

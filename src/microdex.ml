@@ -24,8 +24,8 @@ let process (data : string) =
   try
     (* Run the parser on this input. *)
     let p : prog = Parser.main Lexer.token lexbuf in
-    let v = interpret (empty_environnement ()) p in
     let mvt = interpret_type Environnement.empty p in
+    let v = interpret (empty_environnement ()) p in
     Printf.fprintf stderr "\nresultat : ";
     print_multivalue v;
     Printf.fprintf stderr "\ntype : ";

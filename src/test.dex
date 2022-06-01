@@ -4,9 +4,21 @@ def f (x, y : real, real; z : real) =
     let (;c : real) = b *. z in
     (b; c);
 
+def g (z : real;) =
+    let (a : real;) = 3 in
+    let (b : real;) = 9 in
+    let (t : [real, real];) = [a, b] in
+    let ([x, y] : [real, real];) = t in
+    let (s : real;) = (y - x) in
+    let (c : real;) = (z + s) in
+    c;
+
 def main (;) =
     let (x : real;) = 2 in
     let (x2 : real;) = sin(x) in
     let (y : real;) = 3 in
     let (;z : real) = (0l : real) in
-    f (x2, y; z)
+    let (a : real; d : real) = f (x2, y; z) in
+    let (b : real;) = g (a;) in
+    let (t : [real, real];) = [a, b] in
+    (t; d)
