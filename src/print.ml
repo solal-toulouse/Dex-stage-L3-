@@ -67,17 +67,18 @@ and print_type_list (ts : value_type list) =
       Printf.fprintf stderr ", ";
       print_type_list q
 
-let rec print_var_type_list vs ts = match vs, ts with
-  | [], [] -> ()
-  | [v], [t] ->
-    Printf.fprintf stderr "%s : " v;
-    print_type t
-  | v::q1, t::q2 ->
-    Printf.fprintf stderr "%s : " v;
-    print_type t;
-    Printf.fprintf stderr ", ";
-    print_var_type_list q1 q2
-  | _ -> failwith"wrong type"
+let rec print_var_type_list vs ts =
+  match vs, ts with
+    | [], [] -> ()
+    | [v], [t] ->
+      Printf.fprintf stderr "%s : " v;
+      print_type t
+    | v::q1, t::q2 ->
+      Printf.fprintf stderr "%s : " v;
+      print_type t;
+      Printf.fprintf stderr ", ";
+      print_var_type_list q1 q2
+    | _ -> failwith"wrong type"
 
 let print_multivalue_type (mvt : multivalue_type) =
   let MultiValueType (lvs, nlvs) = mvt in
@@ -133,7 +134,7 @@ let rec print_expr (e : expr) = match e with
     print_var_type_list nlvs nlts;
     Printf.fprintf stderr "; ";
     print_var_type_list lvs lts;
-    Printf.fprintf stderr ") = ";
+    Printf.fprintf stderr ") = \n";
     print_expr e_op;
     Printf.fprintf stderr " in \n";
     print_expr e_mn
@@ -145,8 +146,10 @@ let rec print_expr (e : expr) = match e with
     Printf.fprintf stderr ")"
   | Dup v ->
     Printf.fprintf stderr "dup(%s)" v
-  | Drop v ->
-    Printf.fprintf stderr "drop(%s)" v
+  | Drop e ->
+    Printf.fprintf stderr "drop(";
+    print_expr e;
+    Printf.fprintf stderr ")"
   | ETuple vs ->
     Printf.fprintf stderr "[";
     print_var_list vs;
@@ -156,10 +159,10 @@ let rec print_expr (e : expr) = match e with
     print_var_list vs;
     Printf.fprintf stderr "] : [";
     print_type_list ts;
-    Printf.fprintf stderr "]) = %s in " v;
+    Printf.fprintf stderr "];) = %s in " v;
     print_expr e
   | ELinUnpack (vs, ts, v, e) ->
-    Printf.fprintf stderr "let ([";
+    Printf.fprintf stderr "let (;[";
     print_var_list vs;
     Printf.fprintf stderr "] : [";
     print_type_list ts;

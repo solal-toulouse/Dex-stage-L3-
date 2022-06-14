@@ -74,8 +74,8 @@ let expr :=
     { ELinZero t }
   | DUP; LPAREN; v = STRING; RPAREN;
     { Dup v }
-  | DROP; LPAREN; v = STRING; RPAREN;
-    { Drop v }
+  | DROP; LPAREN; e = expr; RPAREN;
+    { Drop e }
 
 let value_type ==
   | REAL;
