@@ -103,6 +103,21 @@ let print_env_type (env : environnementTypes) =
   Printf.fprintf stderr "linear : \n";
   aux l2
 
+let print_env_unzipping (env : environnementUnzipping) =
+  let env_nlu, env_lu = env.env_nlu, env.env_lu in
+  let l1, l2 = Environnement.bindings env_nlu, Environnement.bindings env_lu in
+  let rec aux l = match l with
+    | [] -> ()
+    | (k, t)::q ->
+      Printf.fprintf stderr "%s : " k;
+      print_type t;
+      Printf.fprintf stderr "\n";
+      aux q
+  in Printf.fprintf stderr "non linear : \n";
+  aux l1;
+  Printf.fprintf stderr "linear : \n";
+  aux l2
+
 let rec print_expr (e : expr) = match e with
   | ENonLinLiteral f ->
     Printf.fprintf stderr "%f" f

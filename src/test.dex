@@ -1,6 +1,7 @@
 def main(;) =
-    let (;x : real) = (0l : real) in
-    let (;y : real) = x in
+    let (;x : [real]) = (0l : [real]) in
+    let (;y : [real]) = x in
+    let (;[y] : [real]) = y in
     let (;x : real) = y in
     let (y : real;) = 2 in
     let (;y : real) = y *. x in

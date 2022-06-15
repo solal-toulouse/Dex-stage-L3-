@@ -1,5 +1,5 @@
 open Syntax
-(* open Print *)
+open Print
 
 (* adds variables with their type to the environnement *)
 let add_variable_types (env : environnementTypes) (nlvs : var list) (lvs : var list) (nlts : value_type list) (lts : value_type list) : environnementTypes =
@@ -150,7 +150,7 @@ let rec type_checker (env : environnementTypes) (e : expr) : environnementTypes 
       let env, mvt = type_checker env e2 in
       (match (are_variables_used env.env_lt lvs) with
         | [] -> env, mvt
-        | v::_ -> failwith("unused variable : " ^ v))
+        | v::_ -> print_expr e; failwith("unused variable : " ^ v))
     | EFunCall (f, nlv1s, lv1s) ->
       let nlt2s, lt2s, mv2t = Environnement.find f env.env_ft in
       let env, mv1t = read_types env nlv1s lv1s in

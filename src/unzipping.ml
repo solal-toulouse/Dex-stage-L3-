@@ -189,6 +189,7 @@ let rec unzip (env : environnementUnzipping) (e : expr) : context * expr * expr 
     | EMultiValue (nlvs, lvs) ->
         CEmpty, EMultiValue (nlvs, []), EMultiValue ([], lvs)
     | EDec (nlvs, nlts, lvs, lts, e1, e2) ->
+        let env = add_variable_unzip env nlvs lvs nlts lts in
         let c1, nle1, le1 = unzip env e1 in
         let c2, nle2, le2 = unzip env e2 in
         let c = CDec (nlvs, nlts, [], [], nle1, CEmpty) in
