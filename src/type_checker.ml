@@ -1,5 +1,5 @@
 open Syntax
-open Print
+(* open Print *)
 
 (* adds variables with their type to the environnement *)
 let add_variable_types (env : environnementTypes) (nlvs : var list) (lvs : var list) (nlts : value_type list) (lts : value_type list) : environnementTypes =
@@ -9,8 +9,13 @@ let add_variable_types (env : environnementTypes) (nlvs : var list) (lvs : var l
       | [], [] -> env_t
       | [], _| _, [] -> failwith"type error"
       | a::b, c::d ->
-          let env_t = Environnement.add a c env_t in
-          aux b d env_t
+          try
+            let _ = Environnement.find a env_t in
+            failwith("redefinition of the variable " ^ a)
+          with
+            Not_found ->
+              let env_t = Environnement.add a c env_t in
+              aux b d env_t
   in { env_nlt = aux nlvs nlts env_nlt; env_lt = aux lvs lts env_lt; env_ft = env_ft }
 
 (* finds the type of a variable stored in the environnement *)
@@ -20,11 +25,8 @@ let find_type (env : environnementTypes) (v : var) : multivalue_type =
     MultiValueType ([t], [])
   with
     Not_found -> 
-      try
-        let t = Environnement.find v env.env_lt in
-        MultiValueType ([], [t])
-      with
-        Not_found -> failwith ("variable not found : " ^ v)
+      let t = Environnement.find v env.env_lt in
+      MultiValueType ([], [t])
 
 (* returns the type of a variable deleting it when it's a linear variable *)
 let read_type_variable (env : environnementTypes) (v : var) : environnementTypes * multivalue_type =
@@ -41,7 +43,7 @@ let read_types (env : environnementTypes) (nlvs : var list) (lvs : var list) : e
     match vs with
       | [] -> env, []
       | v::q ->
-          let env, mvt = read_type_variable env v in
+          let env, mvt = try read_type_variable env v with Not_found -> failwith"M" in
           let t = (match mvt with
             | MultiValueType ([t'], []) -> t'
             | MultiValueType ([], [t']) -> t'
@@ -70,7 +72,7 @@ let rec read_tuple_type_nonlin (env : environnementTypes) (vs : var list) : envi
     match vs with
       | [] -> env, Tuple []
       | v::q ->
-        let x = Environnement.find v env.env_nlt in
+        let x = try Environnement.find v env.env_nlt with Not_found -> failwith"B" in
         (match read_tuple_type_nonlin env q with
           | _, Tuple xs ->
             env, Tuple (x::xs)
@@ -88,7 +90,7 @@ let read_tuple_type (env : environnementTypes) (vs : var list) : environnementTy
 
 (* verifies if a non linear binary operation is allowed and returns its type *)
 let verif_type_nonlin_binop (env : environnementTypes) (v1 : var) (v2 : var) : multivalue_type =
-  let t1, t2 = find_type env v1, find_type env v2 in
+  let t1, t2 = (try find_type env v1 with Not_found -> failwith"A"), try find_type env v2 with Not_found -> failwith"D" in
   match t1, t2 with
     | MultiValueType ([Real], []), MultiValueType ([Real], []) -> MultiValueType ([Real], [])
 
@@ -96,7 +98,7 @@ let verif_type_nonlin_binop (env : environnementTypes) (v1 : var) (v2 : var) : m
 
 (* verifies if a non linear unary operation is allowed and returns its type *)
 let verif_type_nonlin_unop (env : environnementTypes) (v : var) : multivalue_type =
-    match find_type env v with
+    match try find_type env v with Not_found -> failwith"E" with
         | MultiValueType ([Real], []) -> MultiValueType ([Real], [])
         | _ -> failwith("unary operator applied to something else than a real : " ^ v)
     
@@ -114,14 +116,14 @@ let verif_type_list (nlt1s : value_type list) (lt1s : value_type list) (mvt : mu
 
 (* verifies if the linear addition is allowed and returns its type *)
 let verif_type_lin_add (env : environnementTypes) (v1 : var) (v2 : var) : multivalue_type =
-  let mvt1, mvt2 = find_type env v1, find_type env v2 in
+  let mvt1, mvt2 = (try find_type env v1 with Not_found -> failwith"F"), try find_type env v2 with Not_found -> failwith"G" in
   match mvt1, mvt2 with
     | MultiValueType ([], [t]), MultiValueType ([], [t']) when t = t' -> MultiValueType ([], [t])
     | _ -> failwith("binary operation between unauthorized types between " ^ v1 ^ " and " ^ v2)
 
 (* verifies if the linear multiplication is allowed and returns its type *)
 let verif_type_lin_mul (env : environnementTypes) (v1 : var) (v2 : var) : multivalue_type =
-  let t1, t2 = find_type env v1, find_type env v2 in
+  let t1, t2 = (try find_type env v1 with Not_found -> failwith"I"), try find_type env v2 with Not_found -> failwith"J" in
   match t1, t2 with
     | MultiValueType ([Real], []), MultiValueType ([], [Real]) -> MultiValueType ([], [Real])
     | _ -> failwith("binary operation between unauthorized types between " ^ v1 ^ " and " ^ v2)
@@ -133,11 +135,11 @@ let remove_type (env : environnementTypes) (v : var) : environnementTypes =
     { env_nlt = env_nlt; env_lt = env_lt; env_ft = env.env_ft }
 
 (* checks if the linear variables are used, and if it's not the case, returns the list of the unused variables *)
-let rec are_variables_used (env_lt : environnementVariableTypes) (vs : var list) : var list =
+let rec unused_variables (env_lt : environnementVariableTypes) (vs : var list) : var list =
   match vs with
     | [] -> []
-    | v::q when Environnement.mem v env_lt -> v::(are_variables_used env_lt q)
-    | _::q -> are_variables_used env_lt q
+    | v::q when Environnement.mem v env_lt -> v::(unused_variables env_lt q)
+    | _::q -> unused_variables env_lt q
 
 (* the main function, it returns the final environnement and the type of the result of an expression *)
 let rec type_checker (env : environnementTypes) (e : expr) : environnementTypes * multivalue_type =
@@ -148,30 +150,30 @@ let rec type_checker (env : environnementTypes) (e : expr) : environnementTypes 
       let env = add_variable_types env nlvs lvs nlts lts in
       verif_type_list nlts lts mvt;
       let env, mvt = type_checker env e2 in
-      (match (are_variables_used env.env_lt lvs) with
+      (match (unused_variables env.env_lt lvs) with
         | [] -> env, mvt
-        | v::_ -> print_expr e; failwith("unused variable : " ^ v))
+        | v::_ -> failwith("unused variable : " ^ v))
     | EFunCall (f, nlv1s, lv1s) ->
-      let nlt2s, lt2s, mv2t = Environnement.find f env.env_ft in
+      let nlt2s, lt2s, mv2t = try Environnement.find f env.env_ft with Not_found -> failwith"C" in
       let env, mv1t = read_types env nlv1s lv1s in
       verif_type_list nlt2s lt2s mv1t;
       env, mv2t
     | ENonLinLiteral _ -> env, MultiValueType ([Real], [])
     | EVar v ->
-      read_type_variable env v
+      (try read_type_variable env v with Not_found -> failwith"N")
     | ENonLinBinOp (v1, _, v2) -> 
       env, verif_type_nonlin_binop env v1 v2
     | ENonLinUnOp (_, v) ->
       env, verif_type_nonlin_unop env v
     | ELinAdd (v1, v2) ->
       let mvt = verif_type_lin_add env v1 v2 in
-      let env, _ = read_type_variable env v1 in
-      let env, _ = read_type_variable env v2 in
+      let env, _ = try read_type_variable env v1 with Not_found -> failwith"O" in
+      let env, _ = try read_type_variable env v2 with Not_found -> failwith"P" in
     env, mvt
     | ELinMul (v1, v2) ->
       let mvt = verif_type_lin_mul env v1 v2 in
-      let env, _ = read_type_variable env v1 in
-      let env, _ = read_type_variable env v2 in
+      let env, _ = try read_type_variable env v1 with Not_found -> failwith"Q" in
+      let env, _ = try read_type_variable env v2 with Not_found -> failwith"R" in
       env, mvt
     | ELinZero t -> env, MultiValueType ([], [t])
     | Dup v -> 
@@ -185,18 +187,18 @@ let rec type_checker (env : environnementTypes) (e : expr) : environnementTypes 
     | ETuple vs ->
       read_tuple_type env vs
     | ENonLinUnpack (vs, ts, v, e') ->
-      (match find_type env v with
+      (match try find_type env v with Not_found -> failwith"K" with
         | MultiValueType ([Tuple ts'], []) when ts = ts' -> 
           let env = add_variable_types env vs [] ts' [] in
           type_checker env e'
         | _ -> failwith("try to unpack the tuple : " ^ v ^ " with the wrong number or type of variables"))
     | ELinUnpack (vs, ts, v, e') ->
-      (match find_type env v with
+      (match try find_type env v with Not_found -> failwith"L" with
         | MultiValueType ([], [Tuple ts']) when ts = ts' -> 
           let env = add_variable_types env [] vs [] ts' in
           let env = remove_type env v in
           let env, mvt = type_checker env e' in
-          (match (are_variables_used env.env_lt vs) with
+          (match (unused_variables env.env_lt vs) with
           | [] -> env, mvt
           | v::_ -> failwith("unused variable : " ^ v))
         | _ -> failwith("try to unpack the tuple : " ^ v ^ " with the wrong number or type of variables"))
@@ -217,12 +219,10 @@ let type_checker_function (env_ft : environnementFunctionTypes) (nlvs : var list
 (* returns the type of the result of a program *)
 let rec interpret_type (env_ft : environnementFunctionTypes) (p : prog) : multivalue_type =
   match p with
-    | [] -> failwith"empty program"
-    | [FunDec ("main", [], [], [], [], e)] ->
-      let env, mvt = type_checker { env_nlt = Environnement.empty; env_lt = Environnement.empty; env_ft = env_ft } e in
-      (match is_empty env with
-        | [] -> mvt
-        | (v, _)::_ -> failwith("unsued linear variable : " ^ v))
+    | [] -> failwith"no main function"
+    | [(FunDec (_, nlvs, nlts, lvs, lts, e))] ->
+      let mvt = type_checker_function env_ft nlvs lvs nlts lts e in
+      mvt
     | (FunDec (f, nlvs, nlts, lvs, lts, e))::q ->
       let mvt = type_checker_function env_ft nlvs lvs nlts lts e in
       let env_ft = Environnement.add f (nlts, lts, mvt) env_ft in

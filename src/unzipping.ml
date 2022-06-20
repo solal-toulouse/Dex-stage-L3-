@@ -11,6 +11,7 @@ type context =
 
 let empty_expr = EMultiValue ([], [])
 
+(* Transforms an expression in a context *)
 let context_of_expr (e : expr) : context =
     match e with
         | EDec (nlvs, nlts, lvs, lts, e1, _) ->
@@ -21,6 +22,7 @@ let context_of_expr (e : expr) : context =
             CLinUnpack (vs, ts, v, CEmpty)
         | _ -> failwith"wrong form for a context"
 
+(* Fills the hole of 'c1' with 'c2' to obtain a new context *)
 let rec compose_context (c1 : context) (c2 : context) : context =
   match c1 with
     | CEmpty -> c2
@@ -37,6 +39,7 @@ let rec compose_context (c1 : context) (c2 : context) : context =
     | CLinUnpack (vs, ts, v, c) ->
         CLinUnpack (vs, ts, v, compose_context c c2)
 
+(* Fills the hole of 'c' with 'e' to obtain an expression *)
 let rec fill_context (c : context) (e : expr) : expr =
     match c with
         | CEmpty -> e
@@ -52,186 +55,70 @@ let rec fill_context (c : context) (e : expr) : expr =
             ENonLinUnpack (vs, ts, v, fill_context c' e)
         | CLinUnpack (vs, ts, v, c') ->
             ELinUnpack (vs, ts, v, fill_context c' e)
-
-let find_unzip (env : environnementUnzipping) (v : var) : multivalue_type =
-  try
-    let t = Environnement.find v env.env_nlu in
-    MultiValueType ([t], [])
-  with
-    Not_found -> 
-      try
-        let t = Environnement.find v env.env_lu in
-        MultiValueType ([], [t])
-      with
-        Not_found -> failwith ("variable not found : " ^ v)
-
-let rec type_list_unzip (env : environnementUnzipping) (vs : var list) : value_type list =
-  match vs with
-    | [] -> []
-    | v::q ->
-        (Environnement.find v env.env_lu)::(type_list_unzip env q)
-
-let add_variable_unzip (env : environnementUnzipping) (nlvs : var list) (lvs : var list) (nlts : value_type list) (lts : value_type list) : environnementUnzipping =
-  let env_nlu, env_lu, env_fu = env.env_nlu, env.env_lu, env.env_fu in
-  let rec aux vs ts env_t =
-    match vs, ts with
-      | [], [] -> env_t
-      | [], _| _, [] -> failwith"type error"
-      | a::b, c::d ->
-        let env_t = Environnement.add a c env_t in
-        aux b d env_t
-  in { env_nlu = aux nlvs nlts env_nlu; env_lu = aux lvs lts env_lu; env_fu = env_fu }
-        
-let rec add_output_unzip (env : environnementUnzipping) (e : expr) (vs : var list) : expr =
-  match e with
-    | EMultiValue (nlvs, lvs) -> EMultiValue (nlvs, lvs @ vs)
-    | EDec (nlvs, nlts, lvs, lts, e1, e2) ->
-      let env = add_variable_unzip env nlvs lvs nlts lts in
-      EDec (nlvs, nlts, lvs, lts, e1, add_output_unzip env e2 vs)
-    | ELinUnpack (lvs, lts, v, e) ->
-      let env = add_variable_unzip env [] lvs [] lts in
-      ELinUnpack (lvs, lts, v, add_output_unzip env e vs)
-    | ENonLinUnpack (nlvs, nlts, v, e) ->
-      let env = add_variable_unzip env nlvs [] nlts [] in
-      ENonLinUnpack (nlvs, nlts, v, add_output_unzip env e vs)
-    | EVar v ->
-        (match find_unzip env v with
-          | MultiValueType ([], _) ->
-              EMultiValue ([], v::vs)
-          | _ ->
-              EMultiValue ([v], vs))
-    | ENonLinLiteral _ | ENonLinBinOp _ | ENonLinUnOp _ ->
-        let vs' = fresh_var [Real] in
-        (match vs' with
-          | [v] ->
-              EDec ([v], [Real], [], [], e, EMultiValue([v], vs))
-          | _ -> failwith"weird")
-    | ELinAdd (v1, _) ->
-        let mvt = find_unzip env v1 in
-        (match mvt with
-          | MultiValueType ([], [t]) ->
-              let vs' = fresh_var [t] in
-              (match vs' with
-                | [v] ->
-                    EDec ([], [], [v], [t], e, EMultiValue([], v::vs))
-                | _ -> failwith"weird")
-          | _ -> failwith"weird")
-    | ELinMul _ ->
-        let vs' = fresh_var [Real] in
-        (match vs' with
-          | [v] ->
-              EDec ([], [], [v], [Real], e, EMultiValue([], v::vs))
-          | _ -> failwith"weird")
-    | ETuple [] -> 
-        let vs' = fresh_var [Tuple [Real]] in
-        (match vs' with
-          | [v] ->
-              EDec ([v], [Tuple [Real]], [], [], e, EMultiValue([v], vs))
-          | _ -> failwith"weird")
-    | ETuple (v::q) ->
-      let ts' = type_list_unzip env (v::q) in
-      let vs' = fresh_var ([Tuple ts']) in
-      (match find_unzip env v with
-        | MultiValueType ([], _) ->
-            (match vs' with
-              | [v'] -> EDec ([], [], [v'], [Tuple ts'], ETuple (v::q), EMultiValue ([], v'::vs))
-              | _ -> failwith"weird")
-        | _ ->
-            (match vs' with
-              | [v'] -> EDec ([v'], [Tuple ts'], [], [], ETuple (v::q), EMultiValue ([v'], vs))
-              | _ -> failwith"weird"))
-    | ELinZero t -> 
-        let vs' = fresh_var [t] in
-        (match vs' with
-          | [v] ->
-              EDec ([], [], [v], [t], e, EMultiValue([], v::vs))
-          | _ -> failwith"weird")
-    | EFunCall (_, nlvs, lvs) ->
-        let nlts, lts = type_list_unzip env nlvs, type_list_unzip env lvs in
-        let nlvs2, lvs2 = fresh_var nlts, fresh_var lts in
-        EDec (nlvs2, nlts, lvs2, lts, e, EMultiValue (nlvs2, lvs2 @ vs))
-    | Dup v ->
-        let mvt = find_unzip env v in
-        (match mvt with
-          | MultiValueType ([], [t]) ->
-              let vs' = fresh_var [t; t] in
-              EDec ([], [], vs', [t; t], Dup v, EMultiValue ([], vs' @ vs))
-          | _ -> failwith"weird")
-    | Drop _ -> EMultiValue ([], vs)
-
-let add_if_non_linear (env : environnementUnzipping) (vs : var list) : var list =
-  match vs with
-    | [] -> []
-    | v::q ->
-      (match find_unzip env v with
-        | MultiValueType (_, []) -> v::q
-        | MultiValueType ([], _) -> []
-        | _ -> failwith"weird")
-
-let rec unzip (env : environnementUnzipping) (e : expr) : context * expr * expr =
+      
+(* Unzip an expression *)
+let rec unzip (env_fu : environnementFunctionUnzipping) (envt : environnementTypes) (e : expr) :environnementTypes * context * expr * expr =
   match e with
     | ENonLinLiteral _ | ENonLinBinOp _ | ENonLinUnOp _ ->
-        CEmpty, e, empty_expr 
+        envt, CEmpty, e, empty_expr 
     | EVar v ->
-        (match find_unzip env v with
+        (match try find_type envt v with Not_found -> failwith"6'" with
           | MultiValueType ([], _) ->
-              CEmpty, empty_expr , EVar v
-          | _ -> CEmpty, EVar v, empty_expr )
+              envt, CEmpty, empty_expr , EVar v
+          | _ -> envt, CEmpty, EVar v, empty_expr )
     | ELinAdd _ | ELinMul _ | ELinZero _ | Dup _ ->
-        CEmpty, empty_expr , e
+        envt, CEmpty, empty_expr , e
     | ETuple [] ->
-        CEmpty, ETuple [], empty_expr 
+        envt, CEmpty, ETuple [], empty_expr 
     | ETuple (x::_) ->
-        (match find_unzip env x with
+        (match try find_type envt x with Not_found -> failwith"7'" with
           | MultiValueType ([], _) ->
-              CEmpty, empty_expr, e
-          | _ -> CEmpty, e, empty_expr)
+              envt, CEmpty, empty_expr, e
+          | _ -> envt, CEmpty, e, empty_expr)
     | EMultiValue (nlvs, lvs) ->
-        CEmpty, EMultiValue (nlvs, []), EMultiValue ([], lvs)
+        envt, CEmpty, EMultiValue (nlvs, []), EMultiValue ([], lvs)
     | EDec (nlvs, nlts, lvs, lts, e1, e2) ->
-        let env = add_variable_unzip env nlvs lvs nlts lts in
-        let c1, nle1, le1 = unzip env e1 in
-        let c2, nle2, le2 = unzip env e2 in
+        let envt = add_variable_types envt nlvs lvs nlts lts in
+        let envt, c1, nle1, le1 = unzip env_fu envt e1 in
+        let envt, c2, nle2, le2 = unzip env_fu envt e2 in
         let c = CDec (nlvs, nlts, [], [], nle1, CEmpty) in
         let c = compose_context c1 (compose_context c c2) in
-        c, nle2, EDec ([], [], lvs, lts, le1, le2)
+        envt, c, nle2, EDec ([], [], lvs, lts, le1, le2)
     | ENonLinUnpack (vs, ts, v, e1) ->
-        let env = add_variable_unzip env vs [] ts [] in
-        let c, nle, le = unzip env e1 in
+        let envt = add_variable_types envt vs [] ts [] in
+        let envt, c, nle, le = unzip env_fu envt e1 in
         let c' = CNonLinUnpack (vs, ts, v, CEmpty) in
         let c' = compose_context c' c in
-        c', nle, le
+        envt, c', nle, le
     | ELinUnpack (vs, ts, v, e1) ->
-        let env = add_variable_unzip env [] vs [] ts in
-        let c, nle, le = unzip env e1 in
-        c, nle, ELinUnpack (vs, ts, v, le)
+        let envt = add_variable_types envt [] vs [] ts in
+        let envt, c, nle, le = unzip env_fu envt e1 in
+        envt, c, nle, ELinUnpack (vs, ts, v, le)
     | EFunCall (f, nlvs, lvs) ->
-        let (nlf, nlts, lf, lts) = Environnement.find f env.env_fu in
-        let nlvs2, lvs2 = fresh_var nlts, fresh_var lts in
-        let c = CDec (nlvs2, nlts, lvs2, lts, EFunCall (nlf, nlvs, []), CEmpty) in
-        c, EMultiValue (nlvs2, []), EFunCall (lf, lvs, [])
+        let (nlf, nlts1, lf, nlts2) = try Environnement.find f env_fu with Not_found -> failwith"11'" in
+        let nlvs1, nlvs2 = fresh_var nlts1, fresh_var nlts2 in
+        let envt = add_variable_types envt (nlvs2 @ nlvs1) [] (nlts2 @ nlts1) [] in
+        let c = CDec (nlvs1 @ nlvs2, nlts1 @ nlts2, [], [], EFunCall (nlf, nlvs, []), CEmpty) in
+        envt, c, EMultiValue (nlvs1, []), EFunCall (lf, nlvs2, lvs)
     | Drop e' ->
-        let env, e1, e2 = unzip env e' in
-        env, Drop e1, Drop e2
+        let envt, c, e1, e2 = unzip env_fu envt e' in
+        envt, c, Drop e1, Drop e2
 
+(* Unzip a program *)
 let unzip_prog (p : prog) : prog * prog =
     let rec aux (env_fu : environnementFunctionUnzipping) (env_ft : environnementFunctionTypes) (p : prog) : prog * prog =
       match p with
         | [] -> [], []
         | (FunDec (f, nlvs, nlts, lvs, lts, e))::q ->
           let fnonlin, flin = f ^ "'nonlin", f ^ "'lin" in
-          let envt = add_variable_types { env_nlt = Environnement.empty; env_lt = Environnement.empty; env_ft = env_ft } nlvs lvs nlts lts in
-          let envt, mvt = type_checker envt e in
-          let MultiValueType (nlts2, lts2) = mvt in
-          let env_fu = Environnement.add f (fnonlin, nlts2, flin, lts2) env_fu in
-          let env_ft = Environnement.add f (nlts, lts, mvt) env_ft in
-          let envu = { env_nlu = Environnement.empty; env_lu = Environnement.empty; env_fu = env_fu } in
-          let envu = add_variable_unzip envu nlvs lvs nlts lts in
-          let c, nle, le = unzip envu e in
+          let env = add_variable_types { env_nlt = Environnement.empty; env_lt = Environnement.empty; env_ft = env_ft } nlvs lvs nlts lts in
+          let _, MultiValueType (nlts', lts') = type_checker env e in
+          let env_ft = Environnement.add f (nlts, lts, MultiValueType (nlts', lts')) env_ft in
+          let envt, c, nle, le = unzip env_fu env e in
+          let vs = free_non_linear_variables env le in
+          let ts = try type_list envt vs with Not_found -> failwith"12" in
+          let _, nle = add_nl_output env (fill_context c nle) vs in
+          let env_fu = Environnement.add f (fnonlin, nlts', flin, ts) env_fu in
           let p1, p2 = aux env_fu env_ft q in
-          let vs = free_non_linear_variables envt le in
-          let ts = type_list envt vs in
-          let _, nle2 = add_nl_output envt (fill_context c nle) vs in
-          let nle2, le = simplify nle2, simplify le in
-          (FunDec (f ^ "'nonlin", nlvs, nlts, [], [], nle2))::p1, (FunDec (f ^"'lin", vs, ts, lvs, lts, le))::p2
+          (FunDec (f ^ "'nonlin", nlvs, nlts, [], [], nle))::p1, (FunDec (f ^"'lin", vs, ts, lvs, lts, le))::p2
     in aux Environnement.empty Environnement.empty p

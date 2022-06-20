@@ -1,10 +1,11 @@
 open Syntax
 open Print
+(* open Interpreter *)
 open Type_checker
-open Interpreter
 open Transposition
 open Unzipping
-open Renaming
+open Pre_treatment
+open Linearize
 
 (* names :
 value : x, y, z
@@ -18,35 +19,35 @@ listes : ~s
 lineaires : l~
 non_linéaire : nl~ *)
 
-(* TODO :
-    - ajouter les tuples
-    - ajouter la localisation des erreurs de parsage *)
-
 let empty_env_type = { env_nlt = Environnement.empty; env_lt = Environnement.empty; env_ft = Environnement.empty }
+let empty_env = { env_nlv = Environnement.empty; env_lv = Environnement.empty; env_f = Environnement.empty }
 
 let process (data : string) =
   let lexbuf = Lexing.from_string data in
   try
     (* Run the parser on this input. *)
     let p : prog = Parser.main Lexer.token lexbuf in
-    let _, _, p' = rename_variables_prog Environnement.empty Environnement.empty p in
+    let p = simplify_prog p in
+    let _ = interpret_type Environnement.empty p in
+    let p' = linearize_prog Environnement.empty p in
+    let p' = simplify_prog p' in
     let p1, p2 = unzip_prog p' in
     print_prog p1;
-    Printf.fprintf stderr "\n\n";
     print_prog p2;
     let p1' = transpose_prog empty_env_type empty_env_type p1 in
+    let p1' = simplify_prog p1' in
     let p2' = transpose_prog empty_env_type empty_env_type p2 in
-    let mvt = interpret_type Environnement.empty p' in
-    let mv = interpret empty_environnement p' in
-    Printf.fprintf stderr "\nresultat : ";
-    print_multivalue mv;
-    Printf.fprintf stderr "\ntype : ";
-    print_multivalue_type mvt;
-    Printf.fprintf stderr "\n\n%!";
-    Printf.fprintf stderr "\n\ntransposition linéaire :\n%!";
+    let p2' = simplify_prog p2' in
+    let mvt1 = interpret_type Environnement.empty p1' in
+    let mvt2 = interpret_type Environnement.empty p2' in
+    Printf.fprintf stderr "\n\n";
     print_prog p1';
-    Printf.fprintf stderr "\n\ntransposition non linéaire :\n";
-    print_prog p2'
+    Printf.fprintf stderr "\n\n";
+    print_prog p2';
+    print_multivalue_type mvt1;
+    Printf.fprintf stderr "\n\n";
+    print_multivalue_type mvt2;
+    Printf.fprintf stderr "\n\n";
   with
   | Lexer.Error msg ->
       Printf.fprintf stderr "%s%!" msg

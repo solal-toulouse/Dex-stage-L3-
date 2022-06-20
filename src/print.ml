@@ -27,7 +27,7 @@ and print_value (x : value) =
       print_value_list xs;
       Printf.fprintf stderr "]"
 
-let print_env_var (env : environnement) =
+let print_env (env : environnement) =
   let env_nlv, env_lv = env.env_nlv, env.env_lv in
   let l1, l2 = Environnement.bindings env_nlv, Environnement.bindings env_lv in
   let rec aux l = match l with
@@ -41,6 +41,15 @@ let print_env_var (env : environnement) =
   aux l1;
   Printf.fprintf stderr "linear : \n";
   aux l2
+
+let print_env_var (env : 'a Environnement.t) =
+  let l = Environnement.bindings env in
+  let rec aux l = match l with
+    | [] -> ()
+    | (a, b)::q ->
+        Printf.fprintf stderr "(%s, %s)" a b;
+        aux q
+  in aux l
 
 let rec print_var_list l = match l with
   | [] -> ()
@@ -91,21 +100,6 @@ let print_multivalue_type (mvt : multivalue_type) =
 let print_env_type (env : environnementTypes) =
   let env_nlt, env_lt = env.env_nlt, env.env_lt in
   let l1, l2 = Environnement.bindings env_nlt, Environnement.bindings env_lt in
-  let rec aux l = match l with
-    | [] -> ()
-    | (k, t)::q ->
-      Printf.fprintf stderr "%s : " k;
-      print_type t;
-      Printf.fprintf stderr "\n";
-      aux q
-  in Printf.fprintf stderr "non linear : \n";
-  aux l1;
-  Printf.fprintf stderr "linear : \n";
-  aux l2
-
-let print_env_unzipping (env : environnementUnzipping) =
-  let env_nlu, env_lu = env.env_nlu, env.env_lu in
-  let l1, l2 = Environnement.bindings env_nlu, Environnement.bindings env_lu in
   let rec aux l = match l with
     | [] -> ()
     | (k, t)::q ->
@@ -174,14 +168,14 @@ let rec print_expr (e : expr) = match e with
     print_var_list vs;
     Printf.fprintf stderr "] : [";
     print_type_list ts;
-    Printf.fprintf stderr "];) = %s in " v;
+    Printf.fprintf stderr "];) = %s in \n" v;
     print_expr e
   | ELinUnpack (vs, ts, v, e) ->
     Printf.fprintf stderr "let (;[";
     print_var_list vs;
     Printf.fprintf stderr "] : [";
     print_type_list ts;
-    Printf.fprintf stderr "]) = %s in " v;
+    Printf.fprintf stderr "]) = %s in \n" v;
     print_expr e
 
 and print_binop(op) = match op with

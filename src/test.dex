@@ -1,8 +1,16 @@
+def f(x, y : real, real;) =
+    let (x2 : [real, real];) = [x, y] in
+    let ([y2, ya] : [real, real];) = x2 in
+    let (y : real;) = y2 + ya in
+    let (y : real;) = sin(y) in
+    let (z : real;) = 3 in
+    let (a : real;) = 4 in
+    let (c : real;) = a + z in
+    drop(y * c);
+
+def g(x : real;) = x;
+
 def main(;) =
-    let (;x : [real]) = (0l : [real]) in
-    let (;y : [real]) = x in
-    let (;[y] : [real]) = y in
-    let (;x : real) = y in
+    let (x : real;) = 1 in
     let (y : real;) = 2 in
-    let (;y : real) = y *. x in
-    y
+    f(x, y;)

@@ -51,4 +51,3 @@ type environnementFunctionTypes = (value_type list * value_type list * multivalu
 type environnementTypes = { env_nlt : environnementVariableTypes; env_lt : environnementVariableTypes; env_ft : environnementFunctionTypes }
 
 type environnementFunctionUnzipping = (funvar * value_type list * funvar * value_type list) Environnement.t
-type environnementUnzipping = { env_nlu : environnementVariableTypes; env_lu : environnementVariableTypes; env_fu : environnementFunctionUnzipping }
