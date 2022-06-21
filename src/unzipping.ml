@@ -14,7 +14,7 @@ let empty_expr = EMultiValue ([], [])
 (* Transforms an expression in a context *)
 let context_of_expr (e : expr) : context =
     match e with
-        | EDec (nlvs, nlts, lvs, lts, e1, _) ->
+        | ELet (nlvs, nlts, lvs, lts, e1, _) ->
             CDec (nlvs, nlts, lvs, lts, e1, CEmpty)
         | ENonLinUnpack (vs, ts, v, _) ->
             CNonLinUnpack (vs, ts, v, CEmpty)
@@ -44,13 +44,13 @@ let rec fill_context (c : context) (e : expr) : expr =
     match c with
         | CEmpty -> e
         | CDec (nlvs, nlts, lvs, lts, e1, CEmpty) ->
-            EDec (nlvs, nlts, lvs, lts, e1, e)
+            ELet (nlvs, nlts, lvs, lts, e1, e)
         | CNonLinUnpack (vs, ts, v, CEmpty) ->
             ENonLinUnpack (vs, ts, v, e)
         | CLinUnpack (vs, ts, v, CEmpty) ->
             ELinUnpack (vs, ts, v, e)
         | CDec (nlvs, nlts, lvs, lts, e1, c') ->
-            EDec (nlvs, nlts, lvs, lts, e1, fill_context c' e)
+            ELet (nlvs, nlts, lvs, lts, e1, fill_context c' e)
         | CNonLinUnpack (vs, ts, v, c') ->
             ENonLinUnpack (vs, ts, v, fill_context c' e)
         | CLinUnpack (vs, ts, v, c') ->
@@ -77,13 +77,13 @@ let rec unzip (env_fu : environnementFunctionUnzipping) (envt : environnementTyp
           | _ -> envt, CEmpty, e, empty_expr)
     | EMultiValue (nlvs, lvs) ->
         envt, CEmpty, EMultiValue (nlvs, []), EMultiValue ([], lvs)
-    | EDec (nlvs, nlts, lvs, lts, e1, e2) ->
+    | ELet (nlvs, nlts, lvs, lts, e1, e2) ->
         let envt = add_variable_types envt nlvs lvs nlts lts in
         let envt, c1, nle1, le1 = unzip env_fu envt e1 in
         let envt, c2, nle2, le2 = unzip env_fu envt e2 in
         let c = CDec (nlvs, nlts, [], [], nle1, CEmpty) in
         let c = compose_context c1 (compose_context c c2) in
-        envt, c, nle2, EDec ([], [], lvs, lts, le1, le2)
+        envt, c, nle2, ELet ([], [], lvs, lts, le1, le2)
     | ENonLinUnpack (vs, ts, v, e1) ->
         let envt = add_variable_types envt vs [] ts [] in
         let envt, c, nle, le = unzip env_fu envt e1 in

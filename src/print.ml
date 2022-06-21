@@ -112,6 +112,35 @@ let print_env_type (env : environnementTypes) =
   Printf.fprintf stderr "linear : \n";
   aux l2
 
+let print_var_list_list (vss : var list list) =
+  let rec aux vss =
+  match vss with
+    | [] -> ()
+    | [vs] ->
+        Printf.fprintf stderr "(";
+        print_var_list vs;
+        Printf.fprintf stderr ")";
+    | vs::vsq ->
+        Printf.fprintf stderr "(";
+        print_var_list vs;
+        Printf.fprintf stderr "), ";
+        aux vsq
+in Printf.fprintf stderr "[";
+aux vss;
+Printf.fprintf stderr "]"
+
+let print_env_var_list (env : var list Environnement.t) =
+  let l = Environnement.bindings env in
+  let rec aux l =
+    match l with
+      | [] -> ()
+      | (v, vs)::q ->
+          Printf.fprintf stderr "[%s, (" v;
+          print_var_list vs;
+          Printf.fprintf stderr ")] ";
+          aux q
+  in aux l
+
 let rec print_expr (e : expr) = match e with
   | ENonLinLiteral f ->
     Printf.fprintf stderr "%f" f
@@ -138,7 +167,7 @@ let rec print_expr (e : expr) = match e with
     Printf.fprintf stderr "; ";
     print_var_list lvs;
     Printf.fprintf stderr ")"
-  | EDec (nlvs, nlts, lvs, lts, e_op, e_mn) ->
+  | ELet (nlvs, nlts, lvs, lts, e_op, e_mn) ->
     Printf.fprintf stderr "let (";
     print_var_type_list nlvs nlts;
     Printf.fprintf stderr "; ";

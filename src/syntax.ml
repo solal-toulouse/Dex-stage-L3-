@@ -29,7 +29,7 @@ type expr =
 | ETuple of var list
 | ELinZero of value_type
 | EMultiValue of (var list) * (var list)
-| EDec of (var list) * (value_type list) * (var list) * (value_type list) * expr * expr
+| ELet of (var list) * (value_type list) * (var list) * (value_type list) * expr * expr
 | ENonLinUnpack of (var list) * (value_type list) * var * expr
 | ELinUnpack of (var list) * (value_type list) * var * expr
 | EFunCall of funvar * (var list) * (var list)

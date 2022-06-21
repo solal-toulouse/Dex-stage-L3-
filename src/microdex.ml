@@ -29,7 +29,7 @@ let process (data : string) =
     let p : prog = Parser.main Lexer.token lexbuf in
     let p = simplify_prog p in
     let _ = interpret_type Environnement.empty p in
-    let p' = linearize_prog Environnement.empty p in
+    let p' = linearize_prog Environnement.empty Environnement.empty p in
     let p' = simplify_prog p' in
     let p1, p2 = unzip_prog p' in
     print_prog p1;

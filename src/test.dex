@@ -6,7 +6,7 @@ def f(x, y : real, real;) =
     let (z : real;) = 3 in
     let (a : real;) = 4 in
     let (c : real;) = a + z in
-    drop(y * c);
+    drop(y);
 
 def g(x : real;) = x;
 

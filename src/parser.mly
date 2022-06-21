@@ -41,13 +41,13 @@ let expr :=
   | LPAREN; nlvs = separated_list(COMMA, STRING); SEMICOLON; lvs = separated_list(COMMA, STRING); RPAREN;
     { EMultiValue (nlvs, lvs) }
   | LET; LPAREN; nlvs = separated_list(COMMA, STRING); DOUBLEDOTS; nlts = separated_list(COMMA, value_type); SEMICOLON; lvs = separated_list(COMMA, STRING); DOUBLEDOTS; lts = separated_list(COMMA, value_type); RPAREN; EQUAL; e1 = expr; IN; e2 = expr;
-    { EDec (nlvs, nlts, lvs, lts, e1, e2) }
+    { ELet (nlvs, nlts, lvs, lts, e1, e2) }
   | LET; LPAREN; nlvs = separated_list(COMMA, STRING); DOUBLEDOTS; nlts = separated_list(COMMA, value_type); SEMICOLON; RPAREN; EQUAL; e1 = expr; IN; e2 = expr;
-    { EDec (nlvs, nlts, [], [], e1, e2) }
+    { ELet (nlvs, nlts, [], [], e1, e2) }
   | LET; LPAREN; SEMICOLON; lvs = separated_list(COMMA, STRING); DOUBLEDOTS; lts = separated_list(COMMA, value_type); RPAREN; EQUAL; e1 = expr; IN; e2 = expr;
-    { EDec ([], [], lvs, lts, e1, e2) }
+    { ELet ([], [], lvs, lts, e1, e2) }
   | LET; LPAREN; SEMICOLON; RPAREN; EQUAL; e1 = expr; IN; e2 = expr;
-    { EDec ([], [], [], [], e1, e2) }
+    { ELet ([], [], [], [], e1, e2) }
   | LET; LPAREN; LHOOK; vs = separated_list(COMMA, STRING); RHOOK; DOUBLEDOTS; LHOOK; ts = separated_list(COMMA, value_type); RHOOK; SEMICOLON; RPAREN; EQUAL; v = STRING; IN; e = expr;
     { ENonLinUnpack (vs, ts, v, e) }
   | LET; LPAREN; SEMICOLON; LHOOK; vs = separated_list(COMMA, STRING); RHOOK; DOUBLEDOTS; LHOOK; ts = separated_list(COMMA, value_type); RHOOK; RPAREN; EQUAL; v = STRING; IN; e = expr;

@@ -59,12 +59,12 @@ let rec rename_variables (renaming : var Environnement.t) (indice : (unit -> int
     | ELinZero _ -> renaming, indice, e
     | EMultiValue (nlvs, lvs) ->
         renaming, indice, EMultiValue ((try current_name renaming nlvs with Not_found -> failwith"n'"), try current_name renaming lvs with Not_found -> failwith"o'")
-    | EDec (nlvs, nlts, lvs, lts, e1, e2) ->
+    | ELet (nlvs, nlts, lvs, lts, e1, e2) ->
         let renaming, indice, e1' = rename_variables renaming indice e1 in
         let renaming, indice, nlvs' = fresh_name_list renaming indice nlvs in
         let renaming, indice, lvs' = fresh_name_list renaming indice lvs in
         let renaming, indice, e2' = rename_variables renaming indice e2 in
-        renaming, indice, EDec (nlvs', nlts, lvs', lts, e1', e2')
+        renaming, indice, ELet (nlvs', nlts, lvs', lts, e1', e2')
     | ENonLinUnpack (vs, ts, v, e) ->
         let v' = try Environnement.find v renaming with Not_found -> failwith"k'"in
         let renaming, indice, vs' = fresh_name_list renaming indice vs in
@@ -141,9 +141,9 @@ let rec replace (vs1 : var list) (vs2 : var list) (e : expr) : expr =
       let nlvs2' = new_var_list vs1 vs2 nlvs2
       and lvs2' = new_var_list vs1 vs2 lvs2 in
       EFunCall (f, nlvs2', lvs2')
-  | EDec (nlvs, nlts, lvs, lts, e1, e2) ->
+  | ELet (nlvs, nlts, lvs, lts, e1, e2) ->
       let e1' = replace vs1 vs2 e1 in
-      EDec (nlvs, nlts, lvs, lts, e1', replace vs1 vs2 e2)
+      ELet (nlvs, nlts, lvs, lts, e1', replace vs1 vs2 e2)
   | ENonLinUnpack (vs, ts, v, e') ->
       ENonLinUnpack (vs, ts, new_var vs1 vs2 v, replace vs1 vs2 e')
   | ELinUnpack (vs, ts, v, e') ->
@@ -154,21 +154,21 @@ let rec replace (vs1 : var list) (vs2 : var list) (e : expr) : expr =
 let rec simplify (e : expr) : expr =
   match e with
     | ENonLinLiteral _ | ENonLinBinOp _ | ENonLinUnOp _ | EVar _ | ELinAdd _ | ELinZero _ | Dup _ | ELinMul _ | ETuple _ | EMultiValue _ | EFunCall _ -> e
-    | EDec ([], [], [], [], EMultiValue ([], []), e') -> simplify e'
-    | EDec ([], [], [], [], Drop e', EMultiValue ([], [])) -> Drop (simplify e')
-    | EDec (nlvs, _, lvs, _, EMultiValue (nlvs', lvs'), e') ->
+    | ELet ([], [], [], [], EMultiValue ([], []), e') -> simplify e'
+    | ELet ([], [], [], [], Drop e', EMultiValue ([], [])) -> Drop (simplify e')
+    | ELet (nlvs, _, lvs, _, EMultiValue (nlvs', lvs'), e') ->
         replace (nlvs @ lvs) (nlvs' @ lvs') (simplify e')
-    | EDec (nlvs, _, lvs, _, e', EMultiValue (nlvs', lvs')) when nlvs = nlvs' && lvs = lvs' -> simplify e'
-    | EDec (nlvs, _, lvs, _, e', EVar v) when nlvs = [v] && lvs = [] -> simplify e'
-    | EDec (nlvs, _, lvs, _, e', EVar v) when lvs = [v] && nlvs = [] -> simplify e'
-    | EDec (nlvs, _, lvs, _, EVar v, e') ->
+    | ELet (nlvs, _, lvs, _, e', EMultiValue (nlvs', lvs')) when nlvs = nlvs' && lvs = lvs' -> simplify e'
+    | ELet (nlvs, _, lvs, _, e', EVar v) when nlvs = [v] && lvs = [] -> simplify e'
+    | ELet (nlvs, _, lvs, _, e', EVar v) when lvs = [v] && nlvs = [] -> simplify e'
+    | ELet (nlvs, _, lvs, _, EVar v, e') ->
         replace (nlvs @ lvs) [v] (simplify e')
     | ENonLinUnpack ([], [], _, e') -> simplify e'
     | ELinUnpack ([], [], _, e') -> simplify e'
     | ENonLinUnpack (vs, ts, v, e') ->
         ENonLinUnpack (vs, ts, v, simplify e')
-    | EDec (nlvs, nlts, lvs, lts, e1, e2) -> 
-        EDec (nlvs, nlts, lvs, lts, simplify e1, simplify e2)
+    | ELet (nlvs, nlts, lvs, lts, e1, e2) -> 
+        ELet (nlvs, nlts, lvs, lts, simplify e1, simplify e2)
     | ELinUnpack (vs, ts, v, e') ->
         ELinUnpack (vs, ts, v, simplify e')
     | Drop e' ->

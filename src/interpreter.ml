@@ -110,7 +110,7 @@ let find (env : environnement) (v : var) : multivalue =
 let rec execute (env : environnement) (e : expr) : multivalue =
   match e with
     | EMultiValue (nlvs, lvs) -> read_values env nlvs lvs
-    | EDec (nlvs, _, lvs, _, e1, e2) ->
+    | ELet (nlvs, _, lvs, _, e1, e2) ->
       let MultiValue (nlxs, lxs) = execute env e1 in
       let env = add_variables env nlvs lvs nlxs lxs
       in execute env e2

@@ -145,7 +145,7 @@ let rec unused_variables (env_lt : environnementVariableTypes) (vs : var list) :
 let rec type_checker (env : environnementTypes) (e : expr) : environnementTypes * multivalue_type =
   match e with
     | EMultiValue (nlvs, lvs) -> read_types env nlvs lvs
-    | EDec (nlvs, nlts, lvs, lts, e1, e2) ->
+    | ELet (nlvs, nlts, lvs, lts, e1, e2) ->
       let env, mvt = type_checker env e1 in
       let env = add_variable_types env nlvs lvs nlts lts in
       verif_type_list nlts lts mvt;
