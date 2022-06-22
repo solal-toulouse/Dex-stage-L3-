@@ -3,7 +3,7 @@
 )
 
 (menhir
-  (modules parser)
+  (modules parser_high_level)
   (flags --strict --explain)
 )
 
