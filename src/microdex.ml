@@ -1,12 +1,13 @@
 open Syntax
 open Print
 (* open Interpreter *)
-(* open Type_checker
 open Transposition
-open Unzipping *)
+open Unzipping
+open Linearize
+open Type_checker
 open Pre_treatment
-(* open Linearize *)
 open Translate
+(* open Generate_expression *)
 
 (* names :
 value : x, y, z
@@ -27,30 +28,56 @@ let process (data : string) =
   let lexbuf = Lexing.from_string data in
   try
     (* Run the parser on this input. *)
-    let p : prog_hl = Parser_high_level.main Lexer.token lexbuf in
-    let p' = translate_prog Environnement.empty p in
-    let p' = simplify_prog p' in
-    print_prog p'
-    (* let _ = interpret_type Environnement.empty p in
-    let p' = linearize_prog Environnement.empty Environnement.empty p in
-    let p' = simplify_prog p' in
-    let p1, p2 = unzip_prog p' in
-    print_prog p1;
-    print_prog p2;
-    let p1' = transpose_prog empty_env_type empty_env_type p1 in
-    let p1' = simplify_prog p1' in
-    let p2' = transpose_prog empty_env_type empty_env_type p2 in
-    let p2' = simplify_prog p2' in
-    let mvt1 = interpret_type Environnement.empty p1' in
-    let mvt2 = interpret_type Environnement.empty p2' in
-    Printf.fprintf stderr "\n\n";
-    print_prog p1';
-    Printf.fprintf stderr "\n\n";
-    print_prog p2';
-    print_multivalue_type mvt1;
-    Printf.fprintf stderr "\n\n";
-    print_multivalue_type mvt2;
-    Printf.fprintf stderr "\n\n"; *)
+    (* for _ = 0 to 100 do
+      let p1 = generate_prog Environnement.empty 2 100 4 in *)
+      let p1 : prog_hl = Parser_high_level.main Lexer.token lexbuf in
+      Printf.fprintf stderr "(1)";
+      let p2 = translate_prog Environnement.empty p1 in
+      Printf.fprintf stderr "(2)";
+      let p2 = simplify_prog p2 in
+      Printf.fprintf stderr "(3)";
+      let _ = interpret_type Environnement.empty p2 in
+      Printf.fprintf stderr "(4)";
+      let p3 = linearize_prog Environnement.empty Environnement.empty p2 in
+      Printf.fprintf stderr "(5)";
+      let _ = interpret_type Environnement.empty p3 in
+      Printf.fprintf stderr "(6)";
+      let p3 = simplify_prog p3 in
+      Printf.fprintf stderr "(7)";
+      let _ = interpret_type Environnement.empty p3 in
+      Printf.fprintf stderr "(8)";
+      let pa, pb = unzip_prog p3 in
+      Printf.fprintf stderr "(9)";
+      let _ = interpret_type Environnement.empty pa in
+      let _ = interpret_type Environnement.empty pb in
+      Printf.fprintf stderr "(10)";
+      let pa' = simplify_prog2 pa in
+      Printf.fprintf stderr "(12)";
+      let _ = interpret_type Environnement.empty pa' in
+      Printf.fprintf stderr "(13)";
+      let pb' = transpose_prog empty_env_type empty_env_type pb in
+      Printf.fprintf stderr "(14)";
+      let _ = interpret_type Environnement.empty pb' in
+      Printf.fprintf stderr "(15)";
+      let pb' = simplify_prog pb' in
+      Printf.fprintf stderr "(16)";
+      let _ = interpret_type Environnement.empty pa' in
+      Printf.fprintf stderr "(17)";
+      let _ = interpret_type Environnement.empty pb' in
+      Printf.fprintf stderr "(18)\n";
+      print_prog pa';
+      print_prog pb';
+      let pb' = compress_prog pb' in
+      print_prog_hl pb';
+      (* Printf.fprintf stderr "\n\n";
+      print_prog pa';
+      Printf.fprintf stderr "\n\n";
+      print_prog pb';
+      print_multivalue_type mvta;
+      Printf.fprintf stderr "\n\n";
+      print_multivalue_type mvtb;
+      Printf.fprintf stderr "\n\n"; *)
+      (* done *)
   with
   | Lexer.Error msg ->
       Printf.fprintf stderr "%s%!" msg

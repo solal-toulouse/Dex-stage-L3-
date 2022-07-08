@@ -1,0 +1,529 @@
+\documentclass[a4paper, french, 11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[left=3cm, right=3cm, top=1.5cm, bottom=3cm]{geometry}
+\usepackage{lmodern}
+\usepackage{xspace}
+\usepackage{varioref}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{siunitx}
+\usepackage{amsmath}
+\usepackage{mathrsfs}
+\usepackage{tikz}
+\usepackage{amssymb}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{hyperref} 
+\usepackage[many]{tcolorbox}
+\usepackage{babel}
+\usepackage{listings}
+\usepackage{pgfplots}
+
+\pgfplotsset{compat=1.17}
+
+% LISTING CONFIG
+\newtoggle{InString}{}% Keep track of if we are within a string
+\togglefalse{InString}% Assume not initally in string
+\newcommand*{\ColorIfNotInString}[1]{\iftoggle{InString}{#1}{\color{green!60!black}#1}}%
+\newcommand*{\ProcessQuote}[1]{#1\iftoggle{InString}{\global\togglefalse{InString}}{\global\toggletrue{InString}}}%
+\lstset{
+  literate=
+  {0}{{{\ColorIfNotInString{0}}}}1
+  {1}{{{\ColorIfNotInString{1}}}}1
+  {2}{{{\ColorIfNotInString{2}}}}1
+  {3}{{{\ColorIfNotInString{3}}}}1
+  {4}{{{\ColorIfNotInString{4}}}}1
+  {5}{{{\ColorIfNotInString{5}}}}1
+  {6}{{{\ColorIfNotInString{6}}}}1
+  {7}{{{\ColorIfNotInString{7}}}}1
+  {8}{{{\ColorIfNotInString{8}}}}1
+  {9}{{{\ColorIfNotInString{9}}}}1
+}
+\lstset{
+  literate=
+  {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+  {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1
+  {à}{{\`a}}1 {è}{{\`e}}1 {ì}{{\`i}}1 {ò}{{\`o}}1 {ù}{{\`u}}1
+  {À}{{\`A}}1 {È}{{\'E}}1 {Ì}{{\`I}}1 {Ò}{{\`O}}1 {Ù}{{\`U}}1
+  {ä}{{\"a}}1 {ë}{{\"e}}1 {ï}{{\"i}}1 {ö}{{\"o}}1 {ü}{{\"u}}1
+  {Ä}{{\"A}}1 {Ë}{{\"E}}1 {Ï}{{\"I}}1 {Ö}{{\"O}}1 {Ü}{{\"U}}1
+  {â}{{\^a}}1 {ê}{{\^e}}1 {î}{{\^i}}1 {ô}{{\^o}}1 {û}{{\^u}}1
+  {Â}{{\^A}}1 {Ê}{{\^E}}1 {Î}{{\^I}}1 {Ô}{{\^O}}1 {Û}{{\^U}}1
+  {œ}{{\oe}}1 {Œ}{{\OE}}1 {æ}{{\ae}}1 {Æ}{{\AE}}1 {ß}{{\ss}}1
+  {ű}{{\H{u}}}1 {Ű}{{\H{U}}}1 {ő}{{\H{o}}}1 {Ő}{{\H{O}}}1
+  {ç}{{\c c}}1 {Ç}{{\c C}}1 {ø}{{\o}}1 {å}{{\r a}}1 {Å}{{\r A}}1
+  {€}{{\EUR}}1 {£}{{\pounds}}1
+}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\lstdefinestyle{myStyle}{
+  numbers=left,
+  backgroundcolor=\color{backcolour},
+  commentstyle=\color{blue!50!white},
+  keywordstyle=\color{orange},
+  basicstyle=\ttfamily\small\selectfont,
+  breakatwhitespace=false,
+  breaklines=true,
+  captionpos=b,
+  keepspaces=true,
+  showspaces=false,
+  showstringspaces=false,
+  showtabs=false,
+  tabsize=4,
+  xleftmargin=.025\textwidth,
+  xrightmargin=.025\textwidth
+}
+
+
+% DOCUMENT
+\date{}
+\title{Implémentation OCaml d'un langage pour la différenciation automatique}
+\author{
+  \textsc{Toulouse} Solal \\
+}
+
+\begin{document}
+\maketitle
+
+
+
+
+
+Le but de ce stage de L3 est d'implémenter une version réduite du langage Dex décrit dans l'article \href{https://arxiv.org/abs/2104.05372}{\textit{Getting to the point}}. Ce langage permet d'effectuer la différentiation automatique expliquée dans un second article des mêmes auteurs : \href{https://arxiv.org/abs/2204.10923?context=cs}{\textit{You Only Linearize Once}} ou de manière plus détaillée dans le livre de Griewank et Walther \href{https://epubs.siam.org/doi/book/10.1137/1.9780898717761}{\textit{Evaluating Derivatives}} en \textit{forward mode} et en \textit{reverse mode} à l'aide d'une combinaison d'opérations simples expliquées dans la suite. Les objectifs sont donc d'écrire un interprète et un typeur pour ce langage, d'implémenter les différentes transformations dont résulte la différenciation automatique, et finalement, de construire un générateur aléatoire de programmes source afin de tester ces transformations. Ce rapport tentera d'expliquer, d'une part, de manière synthétique, les notions de l'article, en y ajoutant certaines précisions omises par les auteurs, et d'autre part, les choix d'implémentation que nous avons faits.
+
+
+
+
+\tableofcontents
+\section{Le langage Linear A}
+
+L'article utilise une version extrèmement réduite du langage \textit{Dex}. Dans un premier temps, nous nous intéresserons à un langage intermédiaire appelé \textit{Linear A}. Ce langage contient les éléments de base d'un langage de programmation : déclaration de fonctions, de variables, opérations unaires et binaires. Sa spécificité est l'existence de deux sortes de variables :
+\begin{itemize}[label=\textbullet, font=\LARGE]
+  \item les variables non-linéaires qui peuvent être utilisées sans restrictions et qui peuvent subir toutes les opérations binaires et unaires implémentées.
+  \item les variables linéaires qui ne peuvent subir qu'un nombre restreint d'opérations :
+      \begin{itemize}
+        \item l'addition de deux variables linéaires
+        \item la multiplication d'une variable linéaire par une variable non-linéaire
+        \item la duplication d'une variable linéaire pour en obtenir deux nouvelles (\textit{dup})
+        \item l'abandon d'une variable linéaire (\textit{drop})
+      \end{itemize}
+\end{itemize}
+
+Ces variables ne peuvent être initialisées qu'à zéro. Ces opérations permettent donc uniquement d'évaluer des variables linéaires à la valeur zéro pour un programme clos du langage \textit{Linear A}. Ce n'est pas un soucis, car ce qui nous importera sera simplement de connaître les différentes opérations subies par ces variables, et non leur valeur finale. Leur autre particularité est qu'elles ne doivent être utilisées qu'une et une seule fois, d'où l'existence des deux dernières opérations. Le \textit{drop} tel que décrit dans l'article peut prendre une expression quelconque en argument et non seulement une variable, son rôle est alors de détruire l'intégralité des variables linéaires libres de cette expression. En réalité, pour les utilisations qui en sont faites dans l'article, nous pouvons restreindre son application à des variables.
+
+Une autre contrainte est qu'il est impossible d'imbriquer des opérations. Il est donc uniquement possible d'effectuer une opération sur des variables. Pour enchaîner plusieurs étapes d'un calcul, il est nécessaire de le décomposer en une suite d'opérations élémentaires.
+
+Finalement, un programme de ce langage est une suite de déclarations de fonctions.
+
+Ainsi une fonction du langage \textit{Linear A} peut être vue comme l'implémentation d'une application linéaire de l'espace de ses entrées linéaires dans l'espace de ses résultats linéaires. Les variables non-linéaires correspondent alors aux scalaires utilisés par la fonction.
+
+La fonction linéaire associée à la matrice 
+$\begin{pmatrix}
+  1&1\\
+  2&0\\
+\end{pmatrix}$
+peut par exemple être représentée par le programme suivant :
+
+\begin{lstlisting}[style=myStyle, language=C]
+def f(;x1 : real, x2 : real) =
+  let (;x1', x1'' : real, real) = dup(x1) in
+  let (a : real;) = 2 in
+  let (; y1 : real) = x1' + x2 in
+  let (; y2 : real) = a * x1'' in
+  (; y1, y2)
+\end{lstlisting}
+
+D'un point de vue pratique, lors de la déclaration ou de l'appel de variables, nous séparerons à l'aide d'un point-virgule les variables non-linéaires (à gauche) des variables linéaires (à droite).
+
+Les types présents dans \textit{Linear A} sont définis récursivement : 
+\begin{itemize}
+  \item les réels (\tt real\rm)
+  \item les tuples de types (\tt [t1, t2, ...]\rm)
+\end{itemize}
+
+Un tuple de variables ne doit pas mélanger les variables linéaires et les variables non-linéaires afin d'obtenir un objet soit linéaire soit non-linéaire. Avoir des objets non mixtes sera, par la suite, une condition pour pouvoir appliquer l'opération d'unzipping.
+
+L'existence de tuples entraîne la présence d'une opération supplémentaire, appelée \textit{Unpack} dans l'article. Elle permet d'extraire les différentes composantes d'un tuple de taille $n$ dans $n$ variables.
+
+
+
+
+\section{Linéarisation}
+
+Cette première opération correspond au \textit{forward mode}. Elle transforme un programme exclusivement non linéaire en un programme mixte où à chaque entrée non-linéaire $x$ du programme initial est associée une entrée linéaire $\dot x $ et à chaque sortie non-linéaire $y$ est associée une sortie linéaire $\dot y$. $\dot x$ peut être interprété comme une variation de $x$. Ainsi, $x = x_1 * x_2$ devient, par exemple, $\dot x = (\dot {x_1} * x_2) + (x_1 * \dot {x_2})$.
+
+Cette transformation prend, en plus de l'expression \tt e \rm à linéariser, une une table d'association, qui à une variable de \tt e \rm associe la variable linéaire correspondante. En réalité, comme les variables linéaires ne peuvent apparaître qu'une fois (là où l'utilisation des variables de \tt e \rm n'est pas restreinte), cette table associe à chaque variable de \tt e \rm une liste de variables linéaires fraîches correspondantes.
+
+Dans nos programmes, nous écrirons \tt x' \rm la variable linéaire associée à \tt x\rm. Voici un exemple de linéarisation pour une fonction de $\mathbb{R}$ dans $\mathbb{R}$ qui à un réel $x$ associe le tuple $[x^2]$ :
+
+\begin{lstlisting}[style=myStyle, language=C]
+def f(x : real;) =
+  let (y : real;) = x * x in
+  [y]
+\end{lstlisting}  
+
+\begin{center}
+  $\big\Downarrow$ \textit{Linearize}
+\end{center}
+
+\begin{lstlisting}[style=myStyle, language=C]
+def f'(x : real; x' : real) =
+  let (y1 : real;) = x * x in
+  let (y : [real];) = [y1] in
+  let (; x1', x2' : real, real) = dup(x') in
+  let (;y1' : real) = x * x1 in
+  let (;y2' : real) = x * x2 in
+  let (;y3' : real) = y1' + y2' in
+  let (;y' : [real]) = [y3'] in
+  (y; y')
+\end{lstlisting}
+
+Comme $x$ apparaît deux fois dans le programme source, la variable linéaire associée $\dot x$ apparaîtra également à deux reprises dans le programme linéarisé. Etant donné qu'une variable linéaire ne peut être utilisée qu'une seule fois, \tt x' \rm doit être dupliqué (ligne 4). Plus généralement, lors de la déclaration d'une variable dans le programme source, il est nécessaire de compter ses occurences dans la suite afin de définir le bon nombre de variables linéaires correspondantes à l'aide de \tt dup\rm. L'exemple suivant illustre le cas où une variable $x$ apparaît trois fois dans la suite du programme (\tt e1 \rm est une expression se linéarisant en \tt e1'\rm):
+
+\begin{lstlisting}[style=myStyle, language=C]
+let (x : real;) = e1 in (x, x, x;)
+\end{lstlisting}  
+
+\begin{center}
+  $\big\Downarrow$ \textit{Linearize}
+\end{center}
+
+\begin{lstlisting}[style=myStyle, language=C]
+let (x : real; x' : real) = e1' in
+let (; x1' : real, x2' : real) = dup(x') in
+let (; x3' : real, x4' : real) = dup(x1') in
+(x, x, x; x2', x3', x4')
+\end{lstlisting}
+
+La syntaxe de ces chaînes de déclarations est lourde, il pourrait donc être intéressant d'ajouter un $dup^n$, qui aurait pour rôle de dupliquer $n$ fois une variable. Cela recouvrirait, par la même occasion, les utilisations de $drop$, grâce au cas $n = 0$. Comme nous le verrons en partie 5, l'opération complémentaire de $dup$ est l'addition, il serait donc également judicieux d'avoir la possibilité d'additionner $n$ variables en une seule opération.
+
+
+
+
+
+\section{Unzipping}
+
+Cette opération a pour but de transformer un programme mixte en deux programmes, l'un traitant les variables linéaires, et l'autre les variables non-linéaires. La difficulté réside dans le fait que les opérations sur les variables linéaires peuvent utiliser une variable non-linéaire. Plus précisément, c'est lors de la multiplication linéaire que l'on a également besoin d'une variable non-linéaire. Il ne suffit donc pas de séparer le programme en deux, il faut aussi conserver la déclaration des variables non-linéaires afin qu'elles puissent à la fois être utilisées dans la partie linéaire et dans la partie non-linéaire, sans toutefois dupliquer les calculs. Pour ce faire, nous utilisons un contexte. Un contexte est une chaîne de déclarations de variables où la dernière déclaration comporte un trou, dans lequel il suffit de placer une expression que l'on souhaite évaluer afin de la rendre close.
+
+\begin{center}
+  $let ~(x_1, x_2, ...) = e_1 ~in ~let ~(y_1, y_2, ...) = e_2~ in~ ...~ in ~[~]$
+\end{center}
+
+Pour la fonction linéarisée de l'exemple précédent, voilà le résultat de l'opération d'unzipping (le résultat est simplifié, les \tt let (;) = () in ... \rm ont par exemple été retirés):
+
+\begin{lstlisting}[style=myStyle, language=C]
+def f'(x : real; x' : real) =
+  let (y1 : real;) = x * x in
+  let (y : [real];) = [y1] in
+  let (; x1', x2' : real, real) = dup(x') in
+  let (;y1' : real) = x * x1 in
+  let (;y2' : real) = x * x2 in
+  let (;y3' : real) = y1' + y2' in
+  let (;y' : [real]) = [y3'] in
+  (y; y')
+\end{lstlisting}  
+
+\begin{center}
+  $\big\Downarrow$ \textit{Unzip}
+\end{center}
+
+\begin{lstlisting}[style=myStyle, language=C]
+def f'_nl (x : real;) =
+  let (y1 : real;) = x * x in
+  let (y : [real];) = [y1] in
+  (y, x;)
+
+def f'_l (x : real; x' : real) =
+  let (;x1', x2' : real, real) = dup(x') in
+  let (;y1' : real) = x * x1 in
+  let (;y2' : real) = x * x2 in
+  let (;y3' : real) = y1' + y2' in
+  let (;y' : [real]) = [y3'] in
+  (; y')
+\end{lstlisting}
+
+Comme le montre l'exemple ci-dessus, lors de la déclaration d'une fonction $f$, la fonction non-linéaire $f_{nl}$ est construite en la partie non-linéaire de $e$ (le corps de $f$) dans le contexte résultant du unzipping de $e$. À cela, on ajoute en sortie les résultats non-linéaires intermédiaires de $f_{nl}$ utilisés par $f_l$. L'appel de la fonction initiale $f$, est donc transformé en deux appels : Un premier appel de $f_{nl}$ avec les arguments non-linéaires de $f$. Ainsi qu'un appel de la partie linéaire $f_l$ avec les arguments linéaires de $f$ ainsi que les sorties utiles de $f_{nl}$.
+\tt let (y; y') = f(x; x') \rm
+est, par exemple, transformé en :\\
+\tt let (y, z;) = f\_nonlin(x;) in let (; y') = f\_lin(z; x')\rm, dans le cas où \tt f\_lin \rm utilise de la variable non-linéaire \tt z\rm.
+
+
+Pour qu'un contexte fonctionne, il est nécessaire qu'il ne contienne pas deux définitions d'une même variable, afin d'éviter que la seconde ne masque la première. Pour cela, les programmes subissent une première transformation qui modifie le nom des variables dont les noms entrent en collision.
+
+
+
+
+\section{Transposition}
+
+Cette troisième et dernière transformation transforme une fonction $f$ en sa fonction "transposée" $f^T$. Si $f$ est une fonction de $E$ dans $F$, alors $f^T$ est une fonction de $F$ dans $E$. Les variables linéaires d'entrée de $f$ seront notées avec un point : $\dot x$, celles de sortie de $f$, donc d'entrée de $f^T$ seront notées avec deux points : $\ddot x$. Cette opération prend une expression \tt e\rm, une liste de variables représentant les entrées de \tt e\rm, ainsi qu'une seconde liste de variables fraîches associées aux sorties de \tt e\rm, qui est la liste des variables libres de la transposée de \tt e\rm.
+
+En s'appuyant sur la vision matricielle d'un programme (\textit{cf. Partie 2}), la transposition correspond à la transposition matricielle. Sur l'exemple simple de l'addition linéaire, la matrice associée est
+$\begin{pmatrix}
+  1&1\\
+\end{pmatrix}$
+, sa transposée : 
+$\begin{pmatrix}
+  1\\
+  1\\
+\end{pmatrix}$
+ correspond à la duplication d'une variable linéaire. La transposée de \tt x = x1 + x2 \rm est donc \tt (y1, y2) = dup(y)\rm.
+
+De manière réciproque, un $dup$ se transpose en une addition. L'article semble dire que $dup$ peut prendre en argument une variable d'un type quelconque, alors que l'addition ne peut s'effectuer qu'entre des réels. Il a donc fallu étendre l'addition à tous les types pour pouvoir obtenir une transposée complète.
+
+Les règles telles qu'elles sont données dans l'article ne s'appliquent qu'à des programmes purement linéaires ou purement non-linéaires, afin d'obtenir des règles simplifiées. C'est pour cela qu'il est nécessaire d'appliquer l'opération d'unzipping avant de transposer un programme.
+
+La règle pour la déclaration de variables linéaires est assez complexe. En voici un exemple simple :
+
+\begin{lstlisting}[style=myStyle, language=C]
+let (; x1 : real) = x2 in x1 + x3
+\end{lstlisting}  
+
+\begin{center}
+  $v_{in} = [x_2; x_3]$\\
+  $v_{out} = [y]$\\
+  $\big\Downarrow$ \textit{Transpose}
+\end{center}
+
+\begin{lstlisting}[style=myStyle, language=C]
+let (; x1', x3' : real, real) = dup(y) in (;x1', x3')
+\end{lstlisting}
+
+Ici, \tt x1 + x3 \rm est transformé en \tt dup(y)\rm, où \tt y \rm est l'entrée de l'expression transposée, et \tt x2 \rm est transformé en \tt x1'\rm, car dans l'expression initiale, \tt x1 \rm est la sortie de l'expression \tt x2\rm. Par la suite, on ajoute \tt x3' \rm aux sorties de l'expression transposée, car la variable n'a pas été utilisée.
+
+Le principe général est que les deux expressions $e_1$ et $e_2$ de $Let ~(...) = e_1 ~in ~e_2$ sont interverties, et que les variables déclarées correspondent à toutes les variables libres de $e_2$. Il faut ensuite ajouter toutes celles d'entre elles qui n'ont pas été utilisées en sortie de $e_1^T$. Nous devons cependant faire attention à ce que les variables soient déclarées dans l'ordre des résultats de $e_2^T$. Pour cela, nous utilisons la convention que, pour une expression $e$, les résultats de $e^T$ apparaissent en fonction de l'ordre d'apparition des variables libres dans $e$.
+
+La règle de transposition du \textit{Unpack} n'est pas spécifiée dans l'article. Nous avons donc introduit la règle suivante qui traite un cas simple : 
+
+\begin{lstlisting}[style=myStyle, language=C]
+let ([x1, x2,...] : [t1, t2, ...]) = x in (x1, x2, ...)
+\end{lstlisting}  
+  
+  \begin{center}
+    $\big\Downarrow$ Transpose
+  \end{center}
+  
+\begin{lstlisting}[style=myStyle, language=C]
+[x1', x2', ...]
+\end{lstlisting}
+
+C'est en fait la règle symétrique de celle proposée dans l'article pour traiter les tuples.
+
+Pour le cas général, nous avons effectué la transformation suivante, afin de se ramener au cas précédent et d'utiliser la règle du \textit{Let} pour le reste :
+
+\begin{lstlisting}[style=myStyle, language=C]
+let ([x1, x2,...] : [t1, t2, ...]) = x in e
+\end{lstlisting}  
+  
+  \begin{center}
+    $\big\Downarrow$
+  \end{center}
+  
+\begin{lstlisting}[style=myStyle, language=C]
+let (x1, x2, ... : t1, t2, ...) = let ([x1', x2' , ...] : [t1, t2, ...]) = x in (x1', x2', ...) in e'
+\end{lstlisting}
+
+Ci-dessous, voilà le résultat de la transposée sur l'exemple des transformations précédentes :
+
+\begin{lstlisting}[style=myStyle, language=C]
+def f'_nl (x : real;) =
+  let (y1 : real;) = x * x in
+  let (y : [real];) = [y1] in
+  (y, x;)
+
+def f'_l (x : real; x' : real) =
+  let (;x1', x2' : real, real) = dup(x') in
+  let (;y1' : real) = x * x1 in
+  let (;y2' : real) = x * x2 in
+  let (;y3' : real) = y1' + y2' in
+  let (;y' : [real]) = [y3'] in
+  (; y')
+\end{lstlisting}  
+
+\begin{center}
+  $\big\Downarrow$ \textit{Transpose}
+\end{center}
+
+\begin{lstlisting}[style=myStyle, language=C]
+def f'_nl_t (x : real;) =
+  let (y1 : real;) = x * x in
+  let (y : [real];) = [y1] in
+  (y, x;)
+
+def f'_l_t (x : real; y'a : [real]) =
+  let (;x1'a, x2'a : real, real) =
+  let (;x2'b, y1'a : real, real) =
+  let (;y1'b, y2'a : real, real) =
+  let (;y3'a : real) =
+  let (;y'b : [real]) = y'a in
+  let ([y3'b] : [real]) = y'b in y3'b
+  in dup(y3'a)
+  in let (;z1 : real) = x * y2'a in
+  (z1, y1'b)
+  in let (;z2 : real) = x * y1'a in
+  (z2, x2'b)
+  in x1'a + x2'a
+\end{lstlisting}
+
+Un programme transposé est généralement plus gros que le programme initial, car à de nombreux moments, il est indispensable d'ajouter des $Let$ pour conserver un programme bien formé. Notemment dans la règle du $Let$, où l'étape qui consiste à ajouter des variables en sortie d'une expression $e$ nécessite de déclarer chaque résultat $e$ dans une variable.
+
+Comme la transposée matricielle, cette transformation doit vérifier la propriété suivante (où $(...|...)$ est le produit scalaire canonique de $\mathbb{R}^n$):
+$\forall (\dot{X_1}, X_2, \ddot{X_3}), (\dot{X_1}| \ddot{e}[X_2; \ddot{X_3}]) = (\ddot{X_3}| \dot e [X_2; \dot{X_1}])$.
+Cette dernière permet donc de vérifier la correction de cette opération.
+
+
+
+
+\section{Générateur de programmes}
+
+Pour pouvoir efficacement tester les différentes transformations, nous avons eu besoin d'engendrer un grand nombre de programmes dans le langage \textit{Linear A}. En réalité, nous avons utilisé un langage plus souple, dont nous avons traduit les programmes en \textit{Linear A}. Dans ce langage, il est possible d'effectuer des opérations sur des expressions et non juste sur des variables. Aussi, il ne contient pas de variables linéaires, car ses programmes sont destinés à être testés sur le \textit{Forward mode} et sur le \textit{Reverse mode} (c'est lors de la linéarisation qu'apparaissent les variables linéaires).
+
+Ce générateur prend en argument un budget $n$ (ordre de grandeur de la taille du programme souhaité), ainsi qu'un type $t$ (également généré aléatoirement), et renvoie un programme dont le type de retour est $t$. À chaque étape, il choisit aléatoirement un nombre, qui le dirige vers une règle de formation d'un programme, et construit récursivement les expressions nécessaires à la bonne formation du programme avec des budgets dont la somme vaut $n-1$.
+
+Un point délicat est la déclaration et l'utilisation de variables, car il n'est pas possible de savoir à l'avance les variables dont le générateur va avoir besoin. Pour cela, nous générons aléatoirement des variables en les stockant avec leur type, puis lorsque le générateur tente d'appeler une variable, nous regardons s'il en existe une du type souhaité, et si ce n'est pas le cas, nous relançons le générateur.
+
+Nous avons utilisé ce générateur pour tester nos transformations. À chaque étape, nous avons vérifié la bonne formation et le bon typage des progammes obtenus. Il nous a permis de relever plusieurs problèmes dans les transformations, notemment dans la règle \textit{Let} de la transposition, où nous avons compris que l'ordre des variables définies devait obéïr à une certaine convention.
+
+
+
+
+\section{\textit{Forward Mode} et \textit{Reverse Mode}}
+
+Comme expliqué précédemment, le \textit{Forward mode} est implémenté par la linéarisation. Le \textit{Reverse mode} est, quant à lui, la composition des trois opérations précédentes.
+Nous avons étudié un second cas de ce dernier sur l'exemple du \textit{Lighthouse} donné dans le livre de Griewank et Walther (page 16) d'une fonction de $\mathbb{R}^4$ dans $\mathbb{R}^2$. Le résultat des transformations succesives est donné en annexe. Bien que ce second exemple soit très gros, il nous a permis de comparer les résultats avec ceux du livre, et ainsi de vérifier manuellement, à défaut de vérification automatique, que notre \textit{Reverse Mode} fonctionne.
+
+  
+
+
+
+\section{Conclusion}
+
+Nous avons atteint l'objectif d'implémenter les trois opérations : la linéarisation, le unzipping et la transposition, puis de les tester sur des programmes générés aléatoirement. Ainsi, nous avons accès à une implémentation fonctionnelle du \textit{Reverse Mode}. 
+
+Ce travail a été fait sur une version très simplifiée du langage \textit{Dex}. Un prolongement serait donc naturellement d'étendre notre implémentation au langage complet qui contient les tableaux, les boucles, les branchements...
+
+Une dernière étape aurait pu être de vérifier automatiquement sur des exemples que les trois opérations sont correctes. Pour la transposition en utilisant la propriété du produit scalaire énoncée précédemment, pour le unzipping, en s'assurant que les deux programmes obtenus renvoient bien les mêmes résultats que le programme initial, et pour la linéarisation, en calculant l'écart entre $f(x + h\dot x)$ et $y + h\dot y$ (où : $f^{lin}(x; \dot x) = (y; \dot y)$) pour différentes valeurs de $h$ et en s'assurant qu'il est petit. Par manque de temps, nous n'avons que pu vérifier manuellement que les résultats étaient bien ceux attendus sur plusieurs exemples.
+
+
+
+
+
+\section{Annexe}
+
+\begin{lstlisting}[style=myStyle, language=C]
+def f(x1, x2, x3, x4 : real, real, real, real) =
+  let (x5 : real) = x3 * x4 in
+  let (x6 : real) = sin(x5)/cos(x5) in
+  let (y1 : real) = (x1 * x6)/(x2 - x6) in
+  let (y2 : real) = (x1 * x2 * x6)/(x2 - x6) in
+  (y1, y2)
+\end{lstlisting}  
+
+\begin{center}
+  $\big\Downarrow$ \textit{Reverse Mode} (écriture simplifiée)
+\end{center}  
+
+\begin{lstlisting}[style=myStyle, language=C]
+def f'23'nonlin(x1, x2, x3, x4; ) = 
+  let (x5; ) = (x3 * x4; ) in 
+  let (v'44; ) = cos(x5) in 
+  let (v'4; ) = (sin(x5); ) in 
+  let (v'48; ) = -1.000000 * sin(x5) in 
+  let (v'3; ) = (cos(x5); ) in 
+  let (v'54; ) = -1.000000 in 
+  let (v'60; ) = 1.000000 / (v'3 * v'3) in 
+  let (x6; ) = (v'4 / v'3; ) in 
+  let (v'8; ) = (x1 * x6; ) in 
+  let (v'72; ) = -1.000000 in 
+  let (v'7; ) = (x2 - x6; ) in 
+  let (v'77; ) = -1.000000 in 
+  let (v'83; ) = 1.000000 / (v'7 * v'7) in 
+  let (y1; ) = (v'8 / v'7; ) in 
+  let (v'16; ) = (x1 * x2; ) in 
+  let (v'14; ) = (v'16 * x6; ) in 
+  let (v'101; ) = -1.000000 in 
+  let (v'13; ) = (x2 - x6; ) in 
+  let (v'106; ) = -1.000000 in 
+  let (v'112; ) = 1.000000 / (v'13 * v'13) in 
+  let (y2; ) = (v'14 / v'13; ) in 
+  (y1, y2, x4, x3, v'44, v'48, v'3, v'4, v'54, v'60, x6, x1, v'72, v'7, v'8, v'77, v'83, x2, v'16, v'101, v'13, v'14, v'106, v'112; )
+
+def f'23'lin'(x4 : real, x3 : real, v'44 : real, v'48 : real, v'3 : real, v'4 : real, v'54 : real, v'60 : real, x6 : real, x1 : real, v'72 : real, v'7 : real, v'8 : real, v'77 : real, v'83 : real, x2 : real, v'16 : real, v'101 : real, v'13 : real, v'14 : real, v'106 : real, v'112 : real, v'131 : real, v'130 : real) = 
+  let (v'132, v'133, v'134, v'135, v'136) = let (v'137, v'138, v'139, v'140, v'141, v'142) = let (v'143, v'144, v'145, v'146, v'147, v'148, v'149) = let (v'150, v'151, v'152, v'153, v'154, v'155) = let (v'166, v'167, v'168, v'169, v'170, v'171, v'172) = let (v'173, v'174, v'175, v'176, v'177, v'178) = let (v'213, v'214, v'215, v'216, v'217, v'218, v'219) = let (v'220, v'221, v'222, v'223, v'224, v'225, v'226, v'227) = let (v'228, v'229, v'230, v'231, v'232, v'233, v'234, v'235, v'236) = let (v'237, v'238, v'239, v'240, v'241, v'242) = let (v'289, v'290, v'291) = let (v'314, v'315) = let (v'325, v'326) = let (v'327, v'328) = let (v'331, v'332) = let (v'333) = let (v'337) = (v'130) in 
+  (v'112) * (v'337) in 
+  (v'333, v'333) in 
+  let (v'342) = ((v'106) * (v'331)) in 
+  (v'342, v'332) in 
+  let (v'343) = ((v'14) * (v'327)) in 
+  (v'343, v'328) in 
+  let (v'344) = ((v'13) * (v'326)) in 
+  (v'344, v'325) in 
+  let (v'316, v'317) = let (v'318, v'319) = (v'315, v'315) in 
+  let (v'324) = ((v'101) * (v'319)) in 
+  (v'324, v'318) in 
+  (v'316, v'317, v'314) in 
+  let (v'292, v'293) = let (v'304, v'305) = let (v'306, v'307) = (v'291, v'291) in 
+  let (v'312) = ((v'16) * (v'306)) in 
+  (v'312, v'307) in 
+  let (v'313) = ((x6) * (v'305)) in 
+  (v'313, v'304) in 
+  let (v'294, v'295) = let (v'296, v'297) = (v'292, v'292) in 
+  let (v'302) = ((x1) * (v'296)) in 
+  (v'302, v'297) in 
+  let (v'303) = ((x2) * (v'295)) in 
+  (v'303, v'294, v'293, v'289, v'290, v'131) in 
+  let (v'243, v'244, v'245) = let (v'256, v'257) = let (v'267, v'268) = let (v'269, v'270) = let (v'273, v'274) = let (v'275) = let (v'279) = (v'242) in 
+  (v'83) * (v'279) in 
+  (v'275, v'275) in 
+  let (v'284) = ((v'77) * (v'273)) in 
+  (v'284, v'274) in 
+  let (v'285) = ((v'8) * (v'269)) in 
+  (v'285, v'270) in 
+  let (v'286) = ((v'7) * (v'268)) in 
+  (v'286, v'267) in 
+  let (v'258, v'259) = let (v'260, v'261) = (v'257, v'257) in 
+  let (v'266) = ((v'72) * (v'261)) in 
+  (v'266, v'260) in 
+  (v'258, v'259, v'256) in 
+  let (v'246, v'247) = let (v'248, v'249) = (v'245, v'245) in 
+  let (v'254) = ((x1) * (v'248)) in 
+  (v'254, v'249) in 
+  let (v'255) = ((x6) * (v'247)) in 
+  (v'255, v'246, v'243, v'244, v'237, v'238, v'239, v'240, v'241) in 
+  let (v'345) = ((v'234) + (v'235)) in 
+  (v'345, v'228, v'229, v'230, v'231, v'232, v'233, v'236) in 
+  let (v'346) = ((v'220) + (v'223)) in 
+  (v'346, v'221, v'222, v'224, v'225, v'226, v'227) in 
+  let (v'347) = ((v'213) + (v'215)) in 
+  (v'347, v'214, v'216, v'217, v'218, v'219) in 
+  let (v'179, v'180) = let (v'185, v'186) = let (v'193, v'194) = let (v'195, v'196) = let (v'199, v'200) = let (v'201) = let (v'205) = (v'173) in 
+  (v'60) * (v'205) in 
+  (v'201, v'201) in 
+  let (v'210) = ((v'54) * (v'199)) in 
+  (v'210, v'200) in 
+  let (v'211) = ((v'4) * (v'195)) in 
+  (v'211, v'196) in 
+  let (v'212) = ((v'3) * (v'194)) in 
+  (v'212, v'193) in 
+  let (v'187) = let (v'190) = (v'186) in 
+  (v'48) * (v'190) in 
+  (v'187, v'185) in 
+  let (v'181) = let (v'182) = (v'180) in 
+  (v'44) * (v'182) in 
+  (v'181, v'179, v'174, v'175, v'176, v'177, v'178) in 
+  let (v'348) = ((v'166) + (v'167)) in 
+  (v'348, v'168, v'169, v'170, v'171, v'172) in 
+  let (v'156, v'157) = let (v'158, v'159) = (v'150, v'150) in 
+  let (v'164) = ((x3) * (v'158)) in 
+  (v'164, v'159) in 
+  let (v'165) = ((x4) * (v'157)) in 
+  (v'165, v'156, v'151, v'152, v'153, v'154, v'155) in 
+  let (v'349) = ((v'148) + (v'149)) in 
+  (v'349, v'143, v'144, v'145, v'146, v'147) in 
+  let (v'350) = ((v'137) + (v'141)) in 
+  (v'350, v'138, v'139, v'140, v'142) in 
+  let (v'351) = ((v'135) + (v'136)) in 
+  (v'351, v'132, v'133, v'134)
+\end{lstlisting}
+\end{document}

@@ -153,16 +153,15 @@ let rec replace (vs1 : var list) (vs2 : var list) (e : expr) : expr =
 (* Deletes 'let (;) = (;) in ...' and 'let (x1, x2, ...) = (y1, y2, ...) in ...' *)
 let rec simplify (e : expr) : expr =
   match e with
-    | ENonLinLiteral _ | ENonLinBinOp _ | ENonLinUnOp _ | EVar _ | ELinAdd _ | ELinZero _ | Dup _ | ELinMul _ | ETuple _ | EMultiValue _ | EFunCall _ -> e
     | ELet ([], [], [], [], EMultiValue ([], []), e') -> simplify e'
     | ELet ([], [], [], [], Drop e', EMultiValue ([], [])) -> Drop (simplify e')
     | ELet (nlvs, _, lvs, _, EMultiValue (nlvs', lvs'), e') ->
-        replace (nlvs @ lvs) (nlvs' @ lvs') (simplify e')
+        simplify (replace (nlvs @ lvs) (nlvs' @ lvs') e')
     | ELet (nlvs, _, lvs, _, e', EMultiValue (nlvs', lvs')) when nlvs = nlvs' && lvs = lvs' -> simplify e'
-    | ELet (nlvs, _, lvs, _, e', EVar v) when nlvs = [v] && lvs = [] -> simplify e'
-    | ELet (nlvs, _, lvs, _, e', EVar v) when lvs = [v] && nlvs = [] -> simplify e'
+    | ELet ([v], _, [], _, e', EVar v') when v = v' -> simplify e'
+    | ELet ([], _, [v], _, e', EVar v') when v = v' -> simplify e'
     | ELet (nlvs, _, lvs, _, EVar v, e') ->
-        replace (nlvs @ lvs) [v] (simplify e')
+        simplify (replace (nlvs @ lvs) [v] e')
     | ENonLinUnpack ([], [], _, e') -> simplify e'
     | ELinUnpack ([], [], _, e') -> simplify e'
     | ENonLinUnpack (vs, ts, v, e') ->
@@ -173,6 +172,25 @@ let rec simplify (e : expr) : expr =
         ELinUnpack (vs, ts, v, simplify e')
     | Drop e' ->
         Drop (simplify e')
+    | _ -> e
+
+(* Just deletes let (;) = (;) in ... *)
+let rec simplify2 (e : expr) : expr =
+  match e with
+    | ELet ([], [], [], [], EMultiValue ([], []), e') -> simplify2 e'
+    | ELet ([], [], [], [], Drop e', EMultiValue ([], [])) -> Drop (simplify2 e')
+    | ENonLinUnpack ([], [], _, e') -> simplify2 e'
+    | ELinUnpack ([], [], _, e') -> simplify2 e'
+    | ENonLinUnpack (vs, ts, v, e') ->
+        ENonLinUnpack (vs, ts, v, simplify2 e')
+    | ELet (nlvs, nlts, lvs, lts, e1, e2) -> 
+        ELet (nlvs, nlts, lvs, lts, simplify2 e1, simplify2 e2)
+    | ELinUnpack (vs, ts, v, e') ->
+        ELinUnpack (vs, ts, v, simplify2 e')
+    | Drop e' ->
+        Drop (simplify2 e')
+    | _ -> e
+
 
 (* Simplifies a program with the previous transformations *)
 let simplify_prog (p : prog) : prog =
@@ -182,5 +200,15 @@ let simplify_prog (p : prog) : prog =
     | [] -> []
     | (FunDec (f, nlvs, nlts, lvs, lts, e))::q ->
         let e' = simplify e in
+        (FunDec (f, nlvs, nlts, lvs, lts, e'))::(aux q)
+  in aux p'
+
+let simplify_prog2 (p : prog) : prog =
+  let _, _, p' = rename_variables_prog Environnement.empty Environnement.empty p in
+  let rec aux (p : prog) : prog =
+  match p with
+    | [] -> []
+    | (FunDec (f, nlvs, nlts, lvs, lts, e))::q ->
+        let e' = simplify2 e in
         (FunDec (f, nlvs, nlts, lvs, lts, e'))::(aux q)
   in aux p'

@@ -13,12 +13,13 @@ let linear_var (env : (var list) Environnement.t) (v : var) : (var list) Environ
         let env = Environnement.add v q env in
         env, v'
 
-let rec find_list (env : (var list) Environnement.t) (vs : var list) : var list =
+let rec find_list (env : (var list) Environnement.t) (vs : var list) : (var list) Environnement.t * var list =
   match vs with
-    | [] -> []
+    | [] -> env, []
     | v::q ->
         let env, v' = try linear_var env v with Not_found -> failwith"a" in
-        v'::(find_list env q)
+        let env, vs' = find_list env q in
+        env, v'::vs'
 
 let rec is_in (vs : 'a list) (v : 'a) : bool =
   match vs with
@@ -108,7 +109,7 @@ let derivation_cos (env : (var list) Environnement.t) (e : expr) (v1 : var) (v :
   env, ELet ([v2], [Real], [], [], ENonLinUnOp (OpSin, v1), e3)
 
 let derivation_exp (env : (var list) Environnement.t) (e : expr) (v1 : var) (v : var) : (var list) Environnement.t * expr =
-  let env, v1' = try linear_var env v with Not_found -> failwith"m" in
+  let env, v1' = try linear_var env v1 with Not_found -> failwith"m" in
   let v2 = one_fresh_var [Real] in
   let e1 = ELet ([], [], [v], [Real], ELinMul (v2, v1'), e) in
   env, ELet ([v2], [Real], [], [], ENonLinUnOp (OpExp, v1), e1)
@@ -215,13 +216,13 @@ let rec linearize (env : (var list) Environnement.t) (envf : funvar Environnemen
         let e' = ELet ([v], [Real], [], [], e, EMultiValue ([v], [v'])) in
         derivation_exp env e' v1 v'
     | ETuple vs ->
-        let vs' = find_list env vs in
+        let env, vs' = find_list env vs in
         let ts = try type_list env_t vs with Not_found -> failwith"p" in
         let v1, v2 = two_fresh_var [Tuple ts; Tuple ts] in
         let e' = ELet ([v1], [Tuple ts], [], [], e, EMultiValue ([v1], [v2])) in
         env, ELet ([], [], [v2], [Tuple ts], ETuple vs', e')
     | EMultiValue (vs, []) ->
-        let vs' = find_list env vs in
+        let env, vs' = find_list env vs in
         env, EMultiValue (vs, vs')
     | ELet (vs, ts, [], [], e1, e2) ->
         let env_t = add_variable_types env_t vs [] ts [] in
@@ -243,7 +244,7 @@ let rec linearize (env : (var list) Environnement.t) (envf : funvar Environnemen
         env, ENonLinUnpack (vs, ts, v, ELinUnpack (vs', ts, v', e'))      
     | EFunCall (f, vs, []) ->
         let f' = try Environnement.find f envf with Not_found -> failwith"o" in
-        let vs' = find_list env vs in
+        let env, vs' = find_list env vs in
         env, EFunCall (f', vs, vs')
     | Drop e ->
         let env, e' = linearize env envf env_t e in

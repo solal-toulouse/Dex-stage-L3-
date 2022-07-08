@@ -1,0 +1,9 @@
+\babel@toc {french}{}
+\contentsline {section}{\numberline {1}Le langage Linear A}{1}{section.1}%
+\contentsline {section}{\numberline {2}Linéarisation}{2}{section.2}%
+\contentsline {section}{\numberline {3}Unzipping}{3}{section.3}%
+\contentsline {section}{\numberline {4}Transposition}{4}{section.4}%
+\contentsline {section}{\numberline {5}Générateur de programmes}{6}{section.5}%
+\contentsline {section}{\numberline {6}\textit {Forward Mode} et \textit {Reverse Mode}}{7}{section.6}%
+\contentsline {section}{\numberline {7}Conclusion}{7}{section.7}%
+\contentsline {section}{\numberline {8}Annexe}{7}{section.8}%

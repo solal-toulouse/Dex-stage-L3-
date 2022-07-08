@@ -75,6 +75,8 @@ let expr_hl :=
     { HLTuple es }
   | op = unop; LPAREN; e = expr_hl; RPAREN;
     { HLUnOp (op, e) }
+  | LPAREN; RPAREN;
+    { HLMultiValue [] }
   | LPAREN; e = expr_hl; COMMA; es = separated_nonempty_list(COMMA, expr_hl); RPAREN;
     { HLMultiValue (e::es) }
 

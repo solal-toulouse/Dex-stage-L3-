@@ -94,7 +94,7 @@ let rec free_non_linear_variables (env : environnementTypes) (e : expr) : var li
     | ENonLinUnpack (vs, ts, v, e') ->
         let env = add_variable_types env vs [] ts [] in
         let vs' = free_non_linear_variables env e' in
-        v::(remove vs' vs)
+        v::(remove vs' (v::vs))
     | EVar v ->
         (try
           let _ = find_type env v in []
@@ -113,7 +113,7 @@ let rec free_non_linear_variables (env : environnementTypes) (e : expr) : var li
         let env = add_variable_types env nlvs lvs nlts lts in
         let vs1 = free_non_linear_variables env e1 in
         let vs2 = free_non_linear_variables env e2 in
-        let vs2 = remove vs2 nlvs in
+        let vs2 = remove vs2 (vs1 @ nlvs) in
         vs1 @ vs2
     | ELinUnpack (vs, ts, _, e') ->
         let env = add_variable_types env [] vs [] ts in
@@ -183,7 +183,7 @@ let rec add_l_output (envt : environnementTypes) (e : expr) (vs : var list) : en
             let envt = add_variable_types envt [] [v'] [] [Tuple ts'] in
             envt, ELet ([], [], [v'], [Tuple ts'], ETuple (v::q), EMultiValue ([], v'::vs))
         | _ ->
-            let envt = add_variable_types envt [v] [] [Tuple ts'] [] in
+            let envt = add_variable_types envt [v'] [] [Tuple ts'] [] in
             envt, ELet ([v'], [Tuple ts'], [], [], ETuple (v::q), EMultiValue ([v'], vs)))
     | ELinZero t -> 
         let v = one_fresh_var [t] in
@@ -279,29 +279,42 @@ let rec add_nl_output (envt : environnementTypes) (e : expr) (vs : var list) : e
 
 (* Returns a multivalue of zeros with the type 'nlts, lts' *)
 let zero (nlts : value_type list) (lts : value_type list) : expr =
-  let rec auxnl nlvs lvs nlts =
-    match nlts with
-      | [] -> EMultiValue (nlvs, lvs)
-      | t::q ->
-          let v = one_fresh_var [t] in
-          ELet ([v], [t], [], [], ELinZero t, auxnl (v::nlvs) lvs q)
-  in let rec auxl nlvs lvs lts =
-    match lts with
-      | [] -> auxnl nlvs lvs nlts
-      | t::q ->
-          let v = one_fresh_var [t] in
-          ELet ([], [], [v], [t], ELinZero t, auxl nlvs (v::lvs) q)
-  in auxl [] [] lts
+  let nlvs, lvs = fresh_var nlts, fresh_var lts in
+  let rec auxnl nlts' nlvs' =
+    match nlts', nlvs' with
+      | [], [] -> EMultiValue (nlvs, lvs)
+      | t::tq, v::vq ->
+          ELet ([v], [t], [], [], ELinZero t, auxnl tq vq)
+      | _ -> failwith"weird"
+  in let rec auxl lts' lvs' =
+    match lts', lvs' with
+      | [], [] -> auxnl nlts nlvs
+      | t::tq, v::vq ->
+          ELet ([], [], [v], [t], ELinZero t, auxl tq vq)
+      | _ -> failwith"weird"
+  in auxl lts lvs
 
-let aux_let (env : environnementTypes) (e : expr) (lvs : var list) : var list * value_type list * var list * value_type list =
+let aux_let (env : environnementTypes) (e : expr) (lvs : var list) : var list * value_type list * var list * value_type list * var list * value_type list =
   let ws = free_linear_variables env e in
+  let ts = try type_list env ws with Not_found -> failwith"7" in
   let ws1 = remove ws lvs in
   let ws2 = remove ws ws1 in
   let ts1 = try type_list env ws1 with Not_found -> failwith"4" in
-  let ws1 = fresh_var ts1 in
   let ts2 = try type_list env ws2 with Not_found -> failwith"5" in
-  let ws2 = fresh_var ts2 in
-  ws1, ts1, ws2, ts2
+  let rec aux ws ts ws1 ws2 = 
+    match ws, ts, ws1, ws2 with
+      | [], _, _, _ -> [], [], []
+      | w::q, t::qt, w1::q1, ws2 when w = w1 ->
+          let w' = one_fresh_var [t] in
+          let ws', ws1', ws2' = aux q qt q1 ws2 in
+          w'::ws', w'::ws1', ws2'
+      | w::q, t::qt, ws1, w2::q2 when w = w2 ->
+          let w' = one_fresh_var [t] in
+          let ws', ws1', ws2' = aux q qt ws1 q2 in
+          w'::ws', ws1', w'::ws2'
+      | _ -> failwith"weird"
+  in let ws, ws1, ws2 = aux ws ts ws1 ws2 in
+  ws, ts, ws1, ts1, ws2, ts2
 
 let transpose_name_function (f : funvar) = (f ^ "'")
 
@@ -335,12 +348,12 @@ let rec transpose_expr (env : environnementTypes) (envt : environnementTypes) (v
     | EMultiValue (vs, _), lws -> envt, env, EMultiValue(vs, lws)
     | ELet ([], [], lvs, lts, e1, e2), _ ->
         let env = add_variable_types env [] lvs [] lts in
-        let ws1, ts1, ws2, ts2 = aux_let env e2 lvs in
+        let ws, ts, ws1, ts1, ws2, ts2 = aux_let env e2 lvs in
         let envt' = add_variable_types envt [] (ws1 @ ws2) [] (ts1 @ ts2) in
         let envt, env, e1' = transpose_expr env envt' ws2 ts2 e1 in
         let envt, env, e2' = transpose_expr env envt v_out t_out e2 in
         let _, e1' = add_l_output envt' e1' ws1 in
-        envt, env, ELet ([], [], ws1 @ ws2, ts1 @ ts2, e2', e1')
+        envt, env, ELet ([], [], ws, ts, e2', e1')
     | ELet (nlvs, nlts, [], [], e1, e2), _ ->
         let env = add_variable_types env nlvs [] nlts [] in
         let envt = add_variable_types envt nlvs [] nlts [] in
@@ -351,9 +364,9 @@ let rec transpose_expr (env : environnementTypes) (envt : environnementTypes) (v
         let env = add_variable_types env [] vs [] ts in
         envt, env, ETuple ws
     | ELinUnpack (vs, ts, v, e'), _ -> (* we come back to the previous case *)
-        let vs2 = fresh_var ts in
-        let envt = add_variable_types envt [] vs2 [] ts in
-        let e1 = ELinUnpack(vs2, ts, v, EMultiValue([], vs2)) in
+        let vs' = fresh_var ts in
+        let envt = add_variable_types envt [] vs' [] ts in
+        let e1 = ELinUnpack(vs', ts, v, EMultiValue([], vs')) in
         let e2 = ELet ([], [], vs, ts, e1, e') in
         transpose_expr env envt v_out t_out e2
     | EFunCall (f, nlvs, _), ws ->
@@ -377,7 +390,7 @@ let rec transpose_prog (env : environnementTypes) (envt : environnementTypes) (p
       let _, MultiValueType (nlts', lts') = type_checker env e in
       let f' = transpose_name_function f in
       let env_ft = Environnement.add f (nlts, lts, MultiValueType (nlts', lts')) env.env_ft in
-      let envt_ft = Environnement.add f' (nlts', lts', MultiValueType (nlts, lts)) envt.env_ft in
+      let envt_ft = Environnement.add f' (nlts, lts', MultiValueType (nlts', lts)) envt.env_ft in
       let env = { env_nlt = env.env_nlt; env_lt = env.env_lt; env_ft = env_ft } in
       let envt = { env_nlt = envt.env_nlt; env_lt = envt.env_lt; env_ft = envt_ft } in
       let lvs2 = fresh_var lts' in
